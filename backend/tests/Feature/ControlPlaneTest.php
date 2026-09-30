@@ -103,6 +103,7 @@ class ControlPlaneTest extends TestCase
 
     public function test_audience_and_overnight_quiet_hours_suppress_messages(): void
     {
+        $this->travelTo(now()->setTimezone('Africa/Addis_Ababa')->setTime(12, 0));
         $device = Installation::factory()->create(['language' => 'en']);
         $campaign = Campaign::factory()->create(['audience' => ['mode' => 'all', 'rules' => [['field' => 'language', 'op' => 'eq', 'value' => 'am']]]]);
         $engine = app(CampaignEngine::class);
