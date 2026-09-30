@@ -1,0 +1,3 @@
+@extends('admin.layout')
+@section('title','Connection reports')
+@section('content')<div class="panel"><p>Reports come from the customer's phone. “Website reached” includes HTTP error responses; a DNS success alone does not prove the page works.</p><table><tr><th>Reference / installation</th><th>Network</th><th>Checks</th><th>UTC</th></tr>@foreach($reports as $report)<tr><td>{{ $report->id }}<br><small>{{ $report->installation_id }}</small></td><td>{{ $report->network }}</td><td>@foreach(json_decode($report->checks,true) as $check)<div>{{ $check['name'] }}: {{ $check['status'] }} @isset($check['http_status']) (HTTP {{ $check['http_status'] }}) @endisset</div>@endforeach</td><td>{{ $report->created_at }}</td></tr>@endforeach</table>{{ $reports->links() }}</div>@endsection

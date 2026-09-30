@@ -1,0 +1,39 @@
+name: Verify Betna
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_sqlite, openssl, mbstring
+          coverage: none
+      - run: composer install --no-interaction --prefer-dist
+      - run: php artisan test
+      - run: vendor/bin/pint --test
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+      - run: chmod +x android/gradlew
+      - run: cd android && ./gradlew testDebugUnitTest assembleDebug assembleDebugAndroidTest lintDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Betna-preview
+          path: android/app/build/outputs/apk/debug/*.apk
