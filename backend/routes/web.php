@@ -63,6 +63,7 @@ Route::middleware(['auth', 'two-factor', 'role:owner,operator'])->group(function
     Route::get('/locations', [BrowserControlController::class, 'locations'])->name('admin.locations');
     Route::get('/locations/export', [BrowserControlController::class, 'export'])->name('admin.locations.export');
     Route::get('/devices/{installation}', [BrowserControlController::class, 'device'])->name('admin.device');
+    Route::get('/device-history/{device}', [BrowserControlController::class, 'deviceHistory'])->name('admin.device.identity');
 });
 Route::middleware(['auth', 'two-factor', 'role:owner'])->group(function (): void {
     Route::get('/cache', [BrowserControlController::class, 'cache'])->name('admin.cache');

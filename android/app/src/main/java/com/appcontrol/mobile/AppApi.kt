@@ -28,6 +28,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 class AppApi(private val context:Context, private val dns:AppDns) {
     private val secrets=SecretStore(context)
+    private val deviceIdentifier by lazy { DeviceIdentity.identifier(context) }
     val preferences=context.getSharedPreferences("appcontrol",Context.MODE_PRIVATE)
     private val executor=Executors.newSingleThreadExecutor()
     private val main=Handler(Looper.getMainLooper())
@@ -50,7 +51,7 @@ class AppApi(private val context:Context, private val dns:AppDns) {
         private set
     private val queueFile=File(context.filesDir,"events.json")
     private var queue=runCatching { JSONArray(queueFile.readText()) }.getOrDefault(JSONArray())
-    private fun metadata()=JSONObject().put("location_permission",preferences.getString("location_permission","unknown")).put("vpn_status",preferences.getString("vpn_status","off")).put("vpn_rx_bytes",preferences.getLong("vpn_rx_bytes",0)).put("vpn_tx_bytes",preferences.getLong("vpn_tx_bytes",0)).put("version_code",BuildConfig.VERSION_CODE).put("version_name",BuildConfig.VERSION_NAME).put("android_version",Build.VERSION.SDK_INT).put("language",Locale.getDefault().language).put("notifications_enabled",NotificationManagerCompat.from(context).areNotificationsEnabled()).put("promotions_enabled",promotions).put("manufacturer",Build.MANUFACTURER.take(80)).put("model",Build.MODEL.take(120)).put("webview_version",WebViewCompat.getCurrentWebViewPackage(context)?.versionName?.take(80)?:JSONObject.NULL).put("push_available",pushAvailable).put("low_ram",context.getSystemService(ActivityManager::class.java).isLowRamDevice).put("capabilities",DeviceRiskSignals.snapshot().put("proxy_override",WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE)).put("safe_browsing",WebViewFeature.isFeatureSupported(WebViewFeature.START_SAFE_BROWSING)))
+    private fun metadata()=JSONObject().put("device_identifier",deviceIdentifier?:JSONObject.NULL).put("location_permission",preferences.getString("location_permission","unknown")).put("vpn_status",preferences.getString("vpn_status","off")).put("vpn_rx_bytes",preferences.getLong("vpn_rx_bytes",0)).put("vpn_tx_bytes",preferences.getLong("vpn_tx_bytes",0)).put("version_code",BuildConfig.VERSION_CODE).put("version_name",BuildConfig.VERSION_NAME).put("android_version",Build.VERSION.SDK_INT).put("language",Locale.getDefault().language).put("notifications_enabled",NotificationManagerCompat.from(context).areNotificationsEnabled()).put("promotions_enabled",promotions).put("manufacturer",Build.MANUFACTURER.take(80)).put("model",Build.MODEL.take(120)).put("webview_version",WebViewCompat.getCurrentWebViewPackage(context)?.versionName?.take(80)?:JSONObject.NULL).put("push_available",pushAvailable).put("low_ram",context.getSystemService(ActivityManager::class.java).isLowRamDevice).put("capabilities",DeviceRiskSignals.snapshot().put("proxy_override",WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE)).put("safe_browsing",WebViewFeature.isFeatureSupported(WebViewFeature.START_SAFE_BROWSING)))
     fun async(work:()->Unit){executor.execute{runCatching(work)}}
     private fun http(path:String,body:JSONObject?=null,authenticated:Boolean=true):JSONObject {
         var failure:Exception?=null

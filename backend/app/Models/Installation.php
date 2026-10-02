@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Installation extends Model
 {
@@ -16,6 +17,11 @@ class Installation extends Model
     protected $guarded = [];
 
     protected $hidden = ['token_hash', 'push_token'];
+
+    public function deviceIdentity(): BelongsTo
+    {
+        return $this->belongsTo(Device::class, 'device_id');
+    }
 
     protected function casts(): array
     {

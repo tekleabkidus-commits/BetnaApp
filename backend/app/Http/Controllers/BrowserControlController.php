@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\AppConfiguration;
+use App\Models\Device;
 use App\Models\Installation;
 use App\Services\ConfigurationService;
 use Carbon\Carbon;
@@ -65,8 +66,17 @@ class BrowserControlController extends Controller
     public function device(Installation $installation): View
     {
         $this->audit('device.report.viewed', $installation->id);
+        $installation->load(['deviceIdentity' => fn ($query) => $query->withCount('installations')]);
 
         return view('admin.device', ['device' => $installation, 'locations' => DB::table('device_locations')->where('installation_id', $installation->id)->latest('observed_at')->limit(100)->get(), 'events' => DB::table('telemetry_events')->where('installation_id', $installation->id)->latest('occurred_at')->paginate(50), 'commands' => DB::table('device_commands')->where('installation_id', $installation->id)->latest()->limit(30)->get()]);
+    }
+
+    public function deviceHistory(Device $device): View
+    {
+        $this->audit('device.history.viewed', $device->id);
+        $device->loadCount('installations')->loadMin('installations', 'created_at')->loadMax('installations', 'last_seen_at');
+
+        return view('admin.device-history', ['identity' => $device, 'installations' => $device->installations()->latest()->orderByDesc('id')->paginate(30), 'sessions' => $device->installations()->sum('session_count')]);
     }
 
     public function cache(): View

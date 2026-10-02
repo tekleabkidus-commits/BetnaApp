@@ -16,6 +16,7 @@
     <x-admin.stat label="Active in 24 hours" :value="number_format($daily)" note="Installations with a recent heartbeat" icon="users" accent="violet" />
     <x-admin.stat label="Active in 30 days" :value="number_format($monthly)" note="Monthly activity from device heartbeats" icon="calendar" accent="blue" />
 </div>
+@include('admin.device-summary')
 <div class="dashboard-grid">
     <section class="panel">
         <div class="panel-heading"><div><h2>Audience activity</h2><p>Unique app-opening installations each day · UTC</p></div><div class="chart-range" role="group" aria-label="Chart date window"><button type="button" data-chart-days="7" aria-pressed="false">7 days</button><button type="button" data-chart-days="30" aria-pressed="true">30 days</button></div></div>

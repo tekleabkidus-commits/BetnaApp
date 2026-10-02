@@ -6,13 +6,14 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 
 class DiagnosticsController extends Controller
 {
     public function ping(): JsonResponse
     {
-        return response()->json(['ok' => true])->header('Cache-Control', 'no-store');
+        return response()->json(['ok' => true, 'features' => ['device_recognition' => Schema::hasTable('devices') && Schema::hasColumn('installations', 'device_id')]])->header('Cache-Control', 'no-store');
     }
 
     public function report(Request $r): JsonResponse

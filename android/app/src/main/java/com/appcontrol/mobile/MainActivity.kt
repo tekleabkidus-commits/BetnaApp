@@ -354,7 +354,7 @@ class MainActivity:ComponentActivity(){
             8->AlertDialog.Builder(this).setTitle("Notifications").setMultiChoiceItems(arrayOf("Promotional messages"),booleanArrayOf(api.promotions)){_,_,on->api.promotions=on;api.heartbeat(resumed)}.setPositiveButton("Done",null).setNeutralButton("Android permission"){_,_->if(Build.VERSION.SDK_INT>=33)notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)}.show()
             9->support();10->testConnection()
             11->api.configuration.optString("download_page_url").takeIf{it.startsWith("https://")}?.let{external(Uri.parse(it))}
-            12->AlertDialog.Builder(this).setTitle("Betna ${BuildConfig.VERSION_NAME}").setMessage("Installation: ${api.preferences.getString("installation_id","Not connected")}\nConnection: ${api.preferences.getString("vpn_status","off")}\nPasswords remain encrypted on this phone.").setPositiveButton("Close",null).show()
+            12->AlertDialog.Builder(this).setTitle("Betna ${BuildConfig.VERSION_NAME}").setMessage("Installation: ${api.preferences.getString("installation_id","Not connected")}\nConnection: ${api.preferences.getString("vpn_status","off")}\nPasswords remain encrypted on this phone.\n\nDevice recognition: Betna uses a hashed, app-scoped Android identifier to group repeat installations in device reports. This does not identify your website account or restore browser data after uninstalling.").setPositiveButton("Close",null).show()
         }}.show();BrowserUi.polish(dialog)
     }
     private fun checkMessages(trigger:String){

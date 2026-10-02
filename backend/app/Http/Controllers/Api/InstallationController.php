@@ -8,6 +8,7 @@ use App\Models\Delivery;
 use App\Models\Installation;
 use App\Services\CampaignEngine;
 use App\Services\ConfigurationService;
+use App\Services\DeviceIdentity;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -24,22 +25,30 @@ class InstallationController extends Controller
         return $r->validate(['version_code' => 'required|integer|min:1', 'version_name' => 'required|string|max:40', 'android_version' => 'required|integer|min:26|max:100', 'language' => 'required|string|max:20', 'notifications_enabled' => 'required|boolean', 'promotions_enabled' => 'sometimes|boolean', 'manufacturer' => 'sometimes|nullable|string|max:80', 'model' => 'sometimes|nullable|string|max:120', 'webview_version' => 'sometimes|nullable|string|max:80', 'push_available' => 'sometimes|boolean', 'low_ram' => 'sometimes|boolean', 'capabilities' => 'sometimes|array:proxy_override,safe_browsing,debugger_attached,root_signal', 'capabilities.debugger_attached' => 'sometimes|boolean', 'capabilities.root_signal' => 'sometimes|boolean', 'capabilities.proxy_override' => 'sometimes|boolean', 'capabilities.safe_browsing' => 'sometimes|boolean']);
     }
 
-    public function register(Request $request): JsonResponse
+    public function register(Request $request, DeviceIdentity $identity): JsonResponse
     {
         $values = $this->metadata($request);
+        $identifier = $request->validate(['device_identifier' => ['nullable', 'string', 'regex:/^[a-fA-F0-9]{64}$/D']])['device_identifier'] ?? null;
         $secret = Str::random(64);
-        $device = Installation::create(array_merge($values, ['id' => (string) Str::uuid(), 'token_hash' => hash('sha256', $secret)]));
+        $device = DB::transaction(function () use ($values, $secret, $identifier, $identity): Installation {
+            $installation = new Installation(array_merge($values, ['id' => (string) Str::uuid(), 'token_hash' => hash('sha256', $secret)]));
+            $identity->attach($installation, $identifier);
+            $installation->save();
+
+            return $installation;
+        });
 
         return response()->json(['installation_id' => $device->id, 'token' => $device->id.'.'.$secret], 201);
     }
 
-    public function heartbeat(Request $request): JsonResponse
+    public function heartbeat(Request $request, DeviceIdentity $identity): JsonResponse
     {
         $values = $this->metadata($request);
+        $identifier = $request->validate(['device_identifier' => ['nullable', 'string', 'regex:/^[a-fA-F0-9]{64}$/D']])['device_identifier'] ?? null;
         $extra = $request->validate(['location_permission' => 'sometimes|in:unknown,denied,approximate,precise', 'vpn_status' => 'sometimes|in:off,connecting,connected,failed,permission_required', 'vpn_rx_bytes' => 'sometimes|integer|min:0', 'vpn_tx_bytes' => 'sometimes|integer|min:0', 'foreground' => 'required|boolean', 'push_token' => 'nullable|string|max:4096']);
         $device = $request->attributes->get('installation');
         $oldVersion = $device->version_code;
-        DB::transaction(function () use ($device, $values, $extra): void {
+        DB::transaction(function () use ($device, $values, $extra, $identifier, $identity): void {
             $locked = Installation::whereKey($device->id)->lockForUpdate()->firstOrFail();
             $rx = max(0, ($extra['vpn_rx_bytes'] ?? $locked->vpn_rx_bytes) - $locked->vpn_rx_bytes);
             $tx = max(0, ($extra['vpn_tx_bytes'] ?? $locked->vpn_tx_bytes) - $locked->vpn_tx_bytes);
@@ -48,8 +57,10 @@ class InstallationController extends Controller
                 DB::table('vpn_usage_days')->insertOrIgnore($key + ['rx_bytes' => 0, 'tx_bytes' => 0]);
                 DB::table('vpn_usage_days')->where($key)->incrementEach(['rx_bytes' => $rx, 'tx_bytes' => $tx]);
             }
-            $device->update(array_merge($values, $extra, ['last_seen_at' => now()]));
+            $identity->attach($locked, $identifier);
+            $locked->update(array_merge($values, $extra, ['last_seen_at' => now()]));
         });
+        $device->refresh();
         if ($oldVersion !== $device->version_code) {
             DB::table('telemetry_events')->insert(['id' => (string) Str::uuid(), 'installation_id' => $device->id, 'type' => 'app_updated', 'version_code' => $device->version_code, 'occurred_at' => now(), 'created_at' => now()]);
         }

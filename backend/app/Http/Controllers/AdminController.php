@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AppConfiguration;
 use App\Models\Campaign;
 use App\Models\Delivery;
+use App\Models\Device;
 use App\Models\Installation;
 use App\Models\Release;
 use App\Models\User;
@@ -75,6 +76,7 @@ class AdminController extends Controller
         $events = $this->filteredEvents($r);
 
         return view('admin.dashboard', [
+            'identityStats' => $this->identityStats(),
             'compatibility' => Installation::select('manufacturer', 'model', 'android_version', 'webview_version', DB::raw('count(*) as total'))->groupBy('manufacturer', 'model', 'android_version', 'webview_version')->orderByDesc('total')->limit(30)->get(), 'retention' => $this->retention(), 'total' => Installation::count(), 'online' => Installation::where('foreground', true)->where('last_seen_at', '>=', now()->subSeconds(config('mobile.online_seconds')))->count(),
             'daily' => Installation::where('last_seen_at', '>=', now()->subDay())->count(), 'weekly' => Installation::where('last_seen_at', '>=', now()->subDays(7))->count(),
             'monthly' => Installation::where('last_seen_at', '>=', now()->subDays(30))->count(),
@@ -108,6 +110,7 @@ class AdminController extends Controller
             'version' => 'nullable|integer|min:1',
             'test' => 'nullable|in:0,1',
             'online' => 'nullable|in:1',
+            'recognized' => 'nullable|in:linked,repeat,unlinked',
         ]);
         $devices = Installation::query();
         if ($search = trim($filters['q'] ?? '')) {
@@ -116,7 +119,7 @@ class AdminController extends Controller
                     ->orWhereLike('model', '%'.$search.'%')
                     ->orWhereLike('manufacturer', '%'.$search.'%');
                 if (Str::isUuid($search)) {
-                    $query->orWhere('id', $search);
+                    $query->orWhere('id', $search)->orWhere('device_id', $search);
                 }
             });
         }
@@ -129,8 +132,23 @@ class AdminController extends Controller
         if ($filters['online'] ?? false) {
             $devices->where('foreground', true)->where('last_seen_at', '>=', now()->subSeconds(config('mobile.online_seconds')));
         }
+        if (($filters['recognized'] ?? null) === 'linked') {
+            $devices->whereNotNull('device_id');
+        } elseif (($filters['recognized'] ?? null) === 'unlinked') {
+            $devices->whereNull('device_id');
+        } elseif (($filters['recognized'] ?? null) === 'repeat') {
+            $devices->whereHas('deviceIdentity', fn ($query) => $query->has('installations', '>', 1));
+        }
 
-        return view('admin.installations', ['devices' => $devices->orderByDesc('last_seen_at')->paginate(30)->withQueryString()]);
+        return view('admin.installations', ['identityStats' => $this->identityStats(), 'devices' => $devices->with(['deviceIdentity' => fn ($query) => $query->withCount('installations')])->orderByDesc('last_seen_at')->paginate(30)->withQueryString()]);
+    }
+
+    /** @return array{devices: int, repeats: int, unlinked: int} */
+    private function identityStats(): array
+    {
+        $recognized = Device::has('installations')->count();
+
+        return ['devices' => $recognized, 'repeats' => Installation::whereNotNull('device_id')->count() - $recognized, 'unlinked' => Installation::whereNull('device_id')->count()];
     }
 
     public function updateInstallation(Request $r, Installation $installation): RedirectResponse
