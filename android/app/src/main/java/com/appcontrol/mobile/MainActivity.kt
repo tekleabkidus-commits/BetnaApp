@@ -6,6 +6,7 @@ import android.app.AlertDialog
 import android.app.ActivityManager
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.net.ConnectivityManager
@@ -111,6 +112,12 @@ class MainActivity:ComponentActivity(){
         sessionStore.read { snapshot->runOnUiThread{restoredSession=snapshot;sessionLoaded=true;connect()} }
         runCatching{getSystemService(ConnectivityManager::class.java).registerDefaultNetworkCallback(networkCallback)}
         api.preferences.getString("last_crash",null)?.let{api.event("app_crash",code=it);api.preferences.edit().remove("last_crash").apply()}
+    }
+    override fun onConfigurationChanged(newConfig:Configuration){
+        super.onConfigurationChanged(newConfig)
+        // Retain the live WebViews, including game state, while the window changes size.
+        tabs.forEach{it.web?.invalidate()}
+        if(::root.isInitialized){root.requestLayout();ViewCompat.requestApplyInsets(root)}
     }
     private var connecting=false
     private fun connect(){if(connecting||!sessionLoaded)return;connecting=true;api.refresh{ok,error->
