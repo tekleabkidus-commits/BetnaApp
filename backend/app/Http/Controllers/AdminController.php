@@ -101,9 +101,36 @@ class AdminController extends Controller
         }, 'app-events.csv', ['Content-Type' => 'text/csv']);
     }
 
-    public function installations(): View
+    public function installations(Request $request): View
     {
-        return view('admin.installations', ['devices' => Installation::orderByDesc('last_seen_at')->paginate(30)]);
+        $filters = $request->validate([
+            'q' => 'nullable|string|max:120',
+            'version' => 'nullable|integer|min:1',
+            'test' => 'nullable|in:0,1',
+            'online' => 'nullable|in:1',
+        ]);
+        $devices = Installation::query();
+        if ($search = trim($filters['q'] ?? '')) {
+            $devices->where(function ($query) use ($search): void {
+                $query->whereLike('label', '%'.$search.'%')
+                    ->orWhereLike('model', '%'.$search.'%')
+                    ->orWhereLike('manufacturer', '%'.$search.'%');
+                if (Str::isUuid($search)) {
+                    $query->orWhere('id', $search);
+                }
+            });
+        }
+        if ($filters['version'] ?? null) {
+            $devices->where('version_code', $filters['version']);
+        }
+        if (isset($filters['test'])) {
+            $devices->where('test_device', $filters['test'] === '1');
+        }
+        if ($filters['online'] ?? false) {
+            $devices->where('foreground', true)->where('last_seen_at', '>=', now()->subSeconds(config('mobile.online_seconds')));
+        }
+
+        return view('admin.installations', ['devices' => $devices->orderByDesc('last_seen_at')->paginate(30)->withQueryString()]);
     }
 
     public function updateInstallation(Request $r, Installation $installation): RedirectResponse
