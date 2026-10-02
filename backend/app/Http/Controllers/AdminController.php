@@ -229,6 +229,7 @@ class AdminController extends Controller
     {
         $data = $this->jsonField($r, 'payload');
         Validator::make($data, [
+            'location.enabled' => 'sometimes|boolean', 'location.interval_seconds' => 'sometimes|integer|min:300|max:86400', 'location.retention_days' => 'sometimes|integer|min:7|max:365', 'cache.mode' => 'sometimes|in:standard',
             'maintenance.enabled' => 'sometimes|boolean', 'maintenance.blocking' => 'sometimes|boolean', 'maintenance.title' => 'nullable|string|max:120', 'maintenance.message' => 'nullable|string|max:2000',
             'website_url' => 'required|url:https|max:2048', 'backup_domains' => 'present|array|max:10', 'backup_domains.*' => 'url:https|max:2048', 'support_url' => 'nullable|url:https|max:2048',
             'tabs.preserve_session' => 'sometimes|boolean', 'campaigns.opening_window_seconds' => 'sometimes|integer|min:2|max:30', 'tabs' => 'required|array', 'tabs.auto_close' => 'required|boolean', 'tabs.timeout_minutes' => 'required|integer|min:1|max:10080', 'tabs.basis' => ['required', Rule::in(['opened', 'activity'])], 'tabs.max_tabs' => 'required|integer|min:2|max:20',
@@ -248,6 +249,7 @@ class AdminController extends Controller
                 }
             }
         }
+        $data['vpn'] = array_replace(ConfigurationService::defaults(), ConfigurationService::selected()?->payload ?? [])['vpn'];
         $target = $r->validate(['scope' => 'required|in:all,test', 'installation_ids' => 'required_if:scope,test|array|max:100', 'installation_ids.*' => ['uuid', Rule::exists('installations', 'id')->where('test_device', true)]]);
         if ($target['scope'] === 'test' && empty($target['installation_ids'])) {
             throw ValidationException::withMessages(['installation_ids' => 'Choose at least one test device.']);

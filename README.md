@@ -1,6 +1,6 @@
 # Betna — Android and Laravel back office
 
-First implementation for an existing website you cannot modify. `backend/` is Laravel 13 (PHP 8.4+); `android/` is Kotlin (Android 8+). Laravel Cloud hosts the admin/API.
+Betna 0.4.0 for an existing website you cannot modify. `backend/` is Laravel 13 (PHP 8.4+); `android/` is Kotlin (Android 8+). Laravel Cloud hosts the admin/API.
 
 ## Included
 
@@ -10,16 +10,20 @@ First implementation for an existing website you cannot modify. `backend/` is La
 - Browser-like session handling: current WebViews stay open when returning, cookies and local storage are retained, and tabs/history are saved encrypted on the device. Back from the homepage backgrounds the app. No settings refresh reloads a game.
 - Editable Telegram username, public Download Betna App page, stable APK redirect and managed share links with request counters.
 - Normal DNS/settings forms, selected test-device configuration revisions, promotion to everyone, rollback and optional/blocking maintenance notices.
-- Android password-manager autofill; no custom password vault or password collection. Availability depends on the website, WebView and password manager.
+- Optional local encrypted password vault with device authentication, save prompts, account management and explicit confirmation before filling a previously saved Betna login on a new configured Betna domain. Passwords never reach Laravel or telemetry. Android password-manager autofill remains an alternative; form compatibility depends on the provider website.
+- Compact icon header, rounded native popups, stable loading indicators and in-place rotation/resize handling. Fullscreen website media is supported.
+- Foreground, permission-based approximate location reporting, filtered clustered location map and audited exports. Per-device pages show activity, location history and command status. Website login attempts are reported separately from successful website logins, which require provider integration.
+- Standard WebView caching and signed, targeted temporary-cache clearing commands (immediate or next opening), with acknowledgements and expiry. Cookies, saved credentials and navigation history are preserved.
+- Admin-controlled per-app WireGuard VPN, Android consent, mandatory-connection blocking, primary/backup endpoints, peer enrollment, traffic reports and configurable cost estimates. VPN remains off until real servers and peers are provisioned.
 - Manual/scheduled/recurring push and event-triggered popup/banner campaigns, audience filters, language variants, caps, quiet hours and opt-outs. Preview, selected-device test delivery and explicit promotion; an opening-only trigger is limited to a configurable 2–30 second launch window.
 - Required authenticator two-factor setup, one-use recovery codes and installation-token revocation. Compatibility metadata includes Android, phone model/manufacturer, WebView, push availability and low-memory devices; startup, crash/renderer and UI-stall telemetry stays bounded.
 - Installation, approximate online, versions, events, campaign delivery and retention reports; CSV export; owner/operator/viewer roles and audit logs.
 - APK drafts/uploads, artifact verification, staged rollout, required minimum version and optional reminders. Android installation consent remains required.
 - Signed remote settings, cached configuration, Keystore-protected installation token and bounded offline telemetry.
 
-## Preview status
+## Build status
 
-The debug APK uses `https://example.com`, with no API or Firebase configured. It demonstrates the shell; campaigns/reports need a connected backend and a rebuilt APK. Preview and production are separate installations. No physical-device acceptance test or live Cloud deployment has been performed. DNS cannot bypass all blocking methods, and backup domains must already serve the website.
+Unconfigured source builds use preview defaults. The delivered signed Betna 0.4.0 APK connects to `https://betnaapp-production-ekfmlk.laravel.cloud/` using the existing public configuration pin and owner signing certificate. Private build settings and keys are excluded from this repository. Firebase delivery requires matching Android and server credentials. No physical-device acceptance test has been performed. DNS cannot bypass all blocking methods; backup domains must already serve the website. The native viewport fills available space, but provider-specific footer spacing requires verification on the actual website and phone.
 
 ## Local backend
 
@@ -52,7 +56,7 @@ Verification: `php artisan test` and `vendor/bin/pint --test`.
 6. Enable scheduler and worker `php artisan queue:work --tries=5 --timeout=60`. Shared cache provides single-server schedule locks.
 7. Create owner, configure HTTPS domain, publish settings and rebuild Android against that API.
 
-Source repository: https://github.com/tekleabkidus-commits/BetnaApp. No live Cloud environment, region or domain has been provisioned by this delivery.
+Source repository: https://github.com/tekleabkidus-commits/BetnaApp. For upgrades, deploy this commit with `php artisan migrate --force`; the migration adds browser-control tables without clearing existing sessions or installations. Confirm the scheduler and queue worker remain enabled. Source publication does not itself verify Cloud deployment.
 
 ## Android build
 
@@ -96,7 +100,9 @@ Cloud PHP does not normally include Android tools; provision the verification en
 - Device instrumentation tests are included, but no emulator or phone was available to run them. Phone/network coverage, full WebView game restoration checks and measured startup/memory profiling remain release acceptance work. R8 makes release code harder to inspect; no client app can be guaranteed uncrackable.
 - Test required/optional updates, invalid certificate, installation permission, offline cache and configuration expiry before public release. Updates cannot install silently.
 - Reports count installations, not verified people. Website accounts, balances and transactions need site cooperation. Detailed events expire after 90 days; installation/delivery records remain.
-- Final logo, support details, production security/accessibility review and device acceptance are launch prerequisites. Never send passwords, page contents or query strings to telemetry.
+- Confirm support details, production accessibility and device acceptance before public rollout. Never send passwords, page contents or query strings to telemetry.
+- VPN setup: create WireGuard server interfaces with the configured public endpoints, enable forwarding/NAT and routes for `10.66.0.0/16`, then install each enrolled device public key with its assigned `/32` address on every primary/backup server. Mark the peer provisioned only after this succeeds. Server private keys stay on servers; device private keys stay on devices. Configure and test endpoints with a test-device revision before enabling mandatory VPN for everyone. Traffic estimates are diagnostics, not provider billing or verified capacity.
+- Location requires Android consent, is collected only while the app is foregrounded, and respects the signed reporting interval. The location map displays last observed coordinates and their accuracy; online counts use recent heartbeats. Retention is configurable (default 90 days).
 
 ## Public downloads and support
 

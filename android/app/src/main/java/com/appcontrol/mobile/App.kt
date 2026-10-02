@@ -7,9 +7,10 @@ import com.google.firebase.FirebaseOptions
 import com.google.firebase.messaging.FirebaseMessaging
 class App : Application() {
     lateinit var api: AppApi
-    val dns = AppDns()
+    val dns by lazy { AppDns(ControlSocketFactory(this)) }
+    lateinit var vpn:BetnaVpn
     override fun onCreate() {
-        super.onCreate(); api = AppApi(this,dns)
+        super.onCreate(); api = AppApi(this,dns);vpn=BetnaVpn(this,api)
         getSystemService(NotificationManager::class.java).createNotificationChannel(NotificationChannel("announcements","Announcements",NotificationManager.IMPORTANCE_DEFAULT))
         val original = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, error ->

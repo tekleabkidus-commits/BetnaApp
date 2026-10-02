@@ -1,7 +1,8 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>@yield('title','Overview') · Betna</title><link rel="stylesheet" href="{{ asset('admin.css') }}"></head>
-<body><div class="shell"><aside><a class="brand" href="{{ route('admin.dashboard') }}"><span class="brand-icon">A</span> Betna</a><div class="caption">ANDROID MANAGEMENT</div><nav>
+<body><div class="shell"><aside><a class="brand" href="{{ route('admin.dashboard') }}"><img class="brand-icon" src="{{ asset('betna-logo.png') }}" alt="Betna"> Betna</a><div class="caption">ANDROID MANAGEMENT</div><nav>
 @foreach(['dashboard'=>'Overview','installations'=>'Installations','campaigns'=>'Campaigns','configuration'=>'Connection & tabs','releases'=>'App releases','audit'=>'Activity log','launch'=>'Support & downloads','connections'=>'Connection reports'] as $key=>$label)<a class="{{ request()->routeIs('admin.'.$key.'*') ? 'active' : '' }}" href="{{ route('admin.'.$key) }}">{{ $label }}</a>@endforeach
-@if(auth()->user()->role === 'owner')<a href="{{ route('admin.staff') }}">Staff access</a>@endif
+@if(in_array(auth()->user()->role,['owner','operator']))<a href="{{ route('admin.locations') }}">Location insights</a>@endif
+@if(auth()->user()->role === 'owner')<a href="{{ route('admin.cache') }}">Cache controls</a><a href="{{ route('admin.vpn') }}">Betna VPN</a><a href="{{ route('admin.staff') }}">Staff access</a>@endif
 <a href="{{ route('two-factor.recovery') }}">Account security</a></nav><div class="account"><strong>{{ auth()->user()->name }}</strong><span>{{ ucfirst(auth()->user()->role) }}</span><form method="post" action="{{ route('logout') }}">@csrf<button class="text-button">Sign out</button></form></div></aside>
 <main><header><div><div class="eyebrow">CONTROL CENTER</div><h1>@yield('title','Overview')</h1></div><span class="chip">Android · Direct APK</span></header>
 @if(session('status'))<div class="notice" role="status">{{ session('status') }}</div>@endif

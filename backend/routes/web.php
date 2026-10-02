@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\BrowserControlController;
 use App\Http\Controllers\CampaignPreviewController;
 use App\Http\Controllers\DownloadController;
 use App\Http\Controllers\LaunchController;
@@ -56,4 +57,17 @@ Route::middleware(['auth', 'two-factor'])->group(function (): void {
         Route::get('/staff', [AdminController::class, 'staff'])->name('admin.staff');
         Route::post('/staff', [AdminController::class, 'saveStaff'])->name('admin.staff.create');
     });
+});
+
+Route::middleware(['auth', 'two-factor', 'role:owner,operator'])->group(function (): void {
+    Route::get('/locations', [BrowserControlController::class, 'locations'])->name('admin.locations');
+    Route::get('/locations/export', [BrowserControlController::class, 'export'])->name('admin.locations.export');
+    Route::get('/devices/{installation}', [BrowserControlController::class, 'device'])->name('admin.device');
+});
+Route::middleware(['auth', 'two-factor', 'role:owner'])->group(function (): void {
+    Route::get('/cache', [BrowserControlController::class, 'cache'])->name('admin.cache');
+    Route::post('/cache', [BrowserControlController::class, 'clearCache'])->name('admin.cache.clear');
+    Route::get('/vpn', [BrowserControlController::class, 'vpn'])->name('admin.vpn');
+    Route::post('/vpn', [BrowserControlController::class, 'saveVpn'])->name('admin.vpn.save');
+    Route::post('/vpn/peers/{id}', [BrowserControlController::class, 'provisionPeer'])->name('admin.vpn.peer');
 });

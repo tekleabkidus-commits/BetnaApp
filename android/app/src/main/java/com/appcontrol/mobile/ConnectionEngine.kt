@@ -14,8 +14,8 @@ import java.util.concurrent.Semaphore
 import java.util.concurrent.TimeUnit
 
 /** Resolves DNS only. HTTPS is tunneled without inspecting or terminating TLS. */
-class AppDns : Dns {
-    private val transport = OkHttpClient.Builder().proxy(Proxy.NO_PROXY).connectTimeout(8, TimeUnit.SECONDS).readTimeout(8, TimeUnit.SECONDS).build()
+class AppDns(private val sockets:javax.net.SocketFactory=javax.net.SocketFactory.getDefault()) : Dns {
+    private val transport = OkHttpClient.Builder().socketFactory(sockets).proxy(Proxy.NO_PROXY).connectTimeout(8, TimeUnit.SECONDS).readTimeout(8, TimeUnit.SECONDS).build()
     @Volatile private var resolvers: List<Dns> = defaults()
     @Volatile private var rules: Map<String, Int> = emptyMap()
     @Volatile private var enabled = true
@@ -72,7 +72,7 @@ class AppDns : Dns {
     }
 }
 
-class ConnectionEngine(private val dns: AppDns) : Closeable {
+class ConnectionEngine(private val dns: AppDns, private val allowConnection:()->Boolean={true},private val openSocket:()->Socket={Socket()}) : Closeable {
     private val server = ServerSocket(0, 32, InetAddress.getByName("127.0.0.1"))
     private val executor = Executors.newCachedThreadPool()
     private val slots = Semaphore(32)
@@ -92,6 +92,7 @@ class ConnectionEngine(private val dns: AppDns) : Closeable {
         return bytes.toString("ISO-8859-1")
     }
     private fun relay(client: Socket) {
+        require(allowConnection())
         client.soTimeout = 15_000
         val input = BufferedInputStream(client.getInputStream())
         val first = readLine(input).split(' ', limit = 3); require(first.size == 3)
@@ -105,8 +106,8 @@ class ConnectionEngine(private val dns: AppDns) : Closeable {
         require(remotePort in listOf(80,443))
         var remote: Socket? = null
         for (address in dns.lookup(uri.host).filter { AppDns.isPublic(it) }) {
-            val candidate = Socket()
-            try { candidate.connect(InetSocketAddress(address, remotePort), 10_000); remote = candidate; break } catch (_: Exception) { candidate.close() }
+            val candidate = openSocket()
+            try { require(allowConnection());candidate.connect(InetSocketAddress(address, remotePort), 10_000); remote = candidate; break } catch (_: Exception) { candidate.close() }
         }
         if (remote == null) { client.getOutputStream().write("HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".toByteArray()); return }
         val upstream = remote; sockets.add(upstream)

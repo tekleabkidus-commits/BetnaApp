@@ -9,8 +9,8 @@ android {
         minSdk = 26
         targetSdk = 35
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        versionCode = setting("VERSION_CODE", "3").toInt()
-        versionName = setting("VERSION_NAME", "0.3.0")
+        versionCode = setting("VERSION_CODE", "4").toInt()
+        versionName = setting("VERSION_NAME", "0.4.0")
         resValue("string", "app_name", setting("APP_NAME", "Betna"))
         buildConfigField("String", "API_URLS", quote(setting("API_URLS")))
         buildConfigField("String", "CONFIG_PUBLIC_KEY", quote(setting("CONFIG_PUBLIC_KEY")))
@@ -41,6 +41,7 @@ android {
     testOptions { unitTests.isReturnDefaultValues = true }
 }
 dependencies {
+    implementation("com.wireguard.android:tunnel:1.0.20260102")
     implementation("androidx.activity:activity-ktx:1.10.1")
     implementation("androidx.webkit:webkit:1.13.0")
     implementation("androidx.core:core-ktx:1.15.0")

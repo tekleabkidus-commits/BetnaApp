@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Models\AppConfiguration;
 use App\Models\Installation;
 use App\Models\Release;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class ConfigurationService
 {
@@ -12,6 +14,9 @@ class ConfigurationService
     {
         return [
             'website_url' => config('mobile.website_url'), 'backup_domains' => [], 'support_url' => config('mobile.support_url'),
+            'vpn' => ['enabled' => false, 'apply' => 'next_open', 'servers' => [], 'included_gib' => 10000, 'base_cost_usd' => 96, 'excess_usd_per_gib' => 0.01, 'budget_usd' => 200],
+            'location' => ['enabled' => true, 'interval_seconds' => 900, 'retention_days' => 90],
+            'cache' => ['mode' => 'standard'],
             'tabs' => ['auto_close' => true, 'timeout_minutes' => 60, 'basis' => 'opened', 'max_tabs' => 8, 'preserve_session' => true],
             'dns' => ['enabled' => true, 'system_fallback' => false, 'resolvers' => [
                 ['url' => 'https://cloudflare-dns.com/dns-query', 'bootstrap_ips' => ['1.1.1.1', '1.0.0.1']],
@@ -44,6 +49,14 @@ class ConfigurationService
         $payload['issued_at'] = now()->timestamp;
         $payload['expires_at'] = now()->addHours(config('mobile.configuration_ttl_hours'))->timestamp;
         $payload['release'] = null;
+        $payload['commands'] = [];
+        if ($installation) {
+            $payload['commands'] = DB::table('device_commands')->where('installation_id', $installation->id)->where('status', 'pending')->where('expires_at', '>', now())->orderBy('created_at')->limit(30)->get(['id', 'type', 'timing', 'expires_at'])->map(fn ($command) => ['id' => $command->id, 'type' => $command->type, 'timing' => $command->timing, 'expires_at' => Carbon::parse($command->expires_at)->timestamp])->all();
+            $peer = DB::table('vpn_peers')->where('installation_id', $installation->id)->first();
+            $payload['vpn']['provisioned'] = (bool) ($peer?->provisioned ?? false);
+            $payload['vpn']['address'] = $peer ? '10.66.'.intdiv($peer->id + 1, 256).'.'.(($peer->id + 1) % 256).'/32' : null;
+        }
+
         if ($installation) {
             $release = Release::where('published', true)->where('artifact_verified', true)->where('min_android', '<=', $installation->android_version)->orderByDesc('version_code')->first();
             if ($release && $installation->version_code < $release->version_code) {

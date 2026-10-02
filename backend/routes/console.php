@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\User;
+use App\Services\ConfigurationService;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schedule;
@@ -35,6 +36,9 @@ Artisan::command('reports:prune {--days=90}', function (): void {
     DB::table('telemetry_events')->where('created_at', '<', $cutoff)->delete();
     DB::table('eligibility_checks')->where('created_at', '<', $cutoff)->delete();
     DB::table('connection_reports')->where('created_at', '<', $cutoff)->delete();
+    $settings = array_replace(ConfigurationService::defaults(), ConfigurationService::selected()?->payload ?? []);
+    DB::table('device_locations')->where('created_at', '<', now()->subDays($settings['location']['retention_days'] ?? 90))->delete();
+    DB::table('device_commands')->where('status', 'pending')->where('expires_at', '<', now())->update(['status' => 'expired', 'updated_at' => now()]);
     $this->info('Old event detail removed; installation and delivery records retained.');
 })->purpose('Remove detailed telemetry beyond the configured retention period');
 Schedule::command('campaigns:dispatch')->everyMinute()->withoutOverlapping(10)->onOneServer();

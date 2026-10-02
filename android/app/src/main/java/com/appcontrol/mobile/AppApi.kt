@@ -31,7 +31,8 @@ class AppApi(private val context:Context, private val dns:AppDns) {
     val preferences=context.getSharedPreferences("appcontrol",Context.MODE_PRIVATE)
     private val executor=Executors.newSingleThreadExecutor()
     private val main=Handler(Looper.getMainLooper())
-    val client:OkHttpClient=OkHttpClient.Builder().dns(dns).proxy(Proxy.NO_PROXY).retryOnConnectionFailure(false).followSslRedirects(false).connectTimeout(12,TimeUnit.SECONDS).readTimeout(20,TimeUnit.SECONDS).build()
+    val client:OkHttpClient=OkHttpClient.Builder().socketFactory(ControlSocketFactory(context)).dns(dns).proxy(Proxy.NO_PROXY).retryOnConnectionFailure(false).followSslRedirects(false).connectTimeout(12,TimeUnit.SECONDS).readTimeout(20,TimeUnit.SECONDS).build()
+    val websiteClient:OkHttpClient by lazy{OkHttpClient.Builder().socketFactory(WebsiteSocketFactory(context)).dns(dns).proxy(Proxy.NO_PROXY).retryOnConnectionFailure(false).followSslRedirects(false).addInterceptor{chain->check((context.applicationContext as App).vpn.usable());chain.proceed(chain.request())}.build()}
     private val urls=BuildConfig.API_URLS.split(',').map { it.trim().trimEnd('/') }.filter { it.startsWith("https://") || (BuildConfig.DEBUG && it.startsWith("http://")) }
     private var token=secrets.read()
     var pushToken:String
@@ -49,7 +50,7 @@ class AppApi(private val context:Context, private val dns:AppDns) {
         private set
     private val queueFile=File(context.filesDir,"events.json")
     private var queue=runCatching { JSONArray(queueFile.readText()) }.getOrDefault(JSONArray())
-    private fun metadata()=JSONObject().put("version_code",BuildConfig.VERSION_CODE).put("version_name",BuildConfig.VERSION_NAME).put("android_version",Build.VERSION.SDK_INT).put("language",Locale.getDefault().language).put("notifications_enabled",NotificationManagerCompat.from(context).areNotificationsEnabled()).put("promotions_enabled",promotions).put("manufacturer",Build.MANUFACTURER.take(80)).put("model",Build.MODEL.take(120)).put("webview_version",WebViewCompat.getCurrentWebViewPackage(context)?.versionName?.take(80)?:JSONObject.NULL).put("push_available",pushAvailable).put("low_ram",context.getSystemService(ActivityManager::class.java).isLowRamDevice).put("capabilities",DeviceRiskSignals.snapshot().put("proxy_override",WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE)).put("safe_browsing",WebViewFeature.isFeatureSupported(WebViewFeature.START_SAFE_BROWSING)))
+    private fun metadata()=JSONObject().put("location_permission",preferences.getString("location_permission","unknown")).put("vpn_status",preferences.getString("vpn_status","off")).put("vpn_rx_bytes",preferences.getLong("vpn_rx_bytes",0)).put("vpn_tx_bytes",preferences.getLong("vpn_tx_bytes",0)).put("version_code",BuildConfig.VERSION_CODE).put("version_name",BuildConfig.VERSION_NAME).put("android_version",Build.VERSION.SDK_INT).put("language",Locale.getDefault().language).put("notifications_enabled",NotificationManagerCompat.from(context).areNotificationsEnabled()).put("promotions_enabled",promotions).put("manufacturer",Build.MANUFACTURER.take(80)).put("model",Build.MODEL.take(120)).put("webview_version",WebViewCompat.getCurrentWebViewPackage(context)?.versionName?.take(80)?:JSONObject.NULL).put("push_available",pushAvailable).put("low_ram",context.getSystemService(ActivityManager::class.java).isLowRamDevice).put("capabilities",DeviceRiskSignals.snapshot().put("proxy_override",WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE)).put("safe_browsing",WebViewFeature.isFeatureSupported(WebViewFeature.START_SAFE_BROWSING)))
     fun async(work:()->Unit){executor.execute{runCatching(work)}}
     private fun http(path:String,body:JSONObject?=null,authenticated:Boolean=true):JSONObject {
         var failure:Exception?=null
@@ -118,5 +119,8 @@ class AppApi(private val context:Context, private val dns:AppDns) {
         http("events",JSONObject().put("events",items))
         synchronized(this){val ids=(0 until items.length()).map{items.getJSONObject(it).getString("id")}.toSet();for(i in queue.length()-1 downTo 0)if(queue.getJSONObject(i).getString("id") in ids)queue.remove(i);persistQueue()}
     }
+    fun location(sample:JSONObject){async{if(!isDemo)http("location",sample)}}
+    fun enrollVpn(publicKey:String){async{if(!isDemo){enroll();http("vpn/peer",JSONObject().put("public_key",publicKey))}}}
+    fun commandResult(id:String,ok:Boolean){async{if(!isDemo)http("commands/ack",JSONObject().put("id",id).put("status",if(ok)"completed" else "failed").put("failure_code",if(ok)JSONObject.NULL else "CACHE_CLEAR_FAILED"))}}
     fun optOut(id:String){async{if(!isDemo)http("opt-out",JSONObject().put("delivery_id",id))}}
 }

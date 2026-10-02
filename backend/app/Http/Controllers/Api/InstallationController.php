@@ -17,7 +17,7 @@ use Illuminate\Validation\Rule;
 
 class InstallationController extends Controller
 {
-    private const EVENTS = ['startup', 'app_crash', 'renderer_failed', 'ui_stall', 'app_open', 'app_updated', 'page_failed', 'page_loaded', 'dns_failed', 'tab_opened', 'tab_closed', 'tab_expired', 'retry', 'notification_received', 'notification_opened', 'notification_suppressed', 'popup_displayed', 'banner_displayed', 'campaign_clicked', 'campaign_dismissed', 'campaign_failed', 'update_prompted', 'update_clicked', 'update_downloaded', 'update_failed'];
+    private const EVENTS = ['vpn_connected', 'vpn_failed', 'cache_cleared', 'login_attempt', 'app_background', 'startup', 'app_crash', 'renderer_failed', 'ui_stall', 'app_open', 'app_updated', 'page_failed', 'page_loaded', 'dns_failed', 'tab_opened', 'tab_closed', 'tab_expired', 'retry', 'notification_received', 'notification_opened', 'notification_suppressed', 'popup_displayed', 'banner_displayed', 'campaign_clicked', 'campaign_dismissed', 'campaign_failed', 'update_prompted', 'update_clicked', 'update_downloaded', 'update_failed'];
 
     private function metadata(Request $r): array
     {
@@ -36,10 +36,20 @@ class InstallationController extends Controller
     public function heartbeat(Request $request): JsonResponse
     {
         $values = $this->metadata($request);
-        $extra = $request->validate(['foreground' => 'required|boolean', 'push_token' => 'nullable|string|max:4096']);
+        $extra = $request->validate(['location_permission' => 'sometimes|in:unknown,denied,approximate,precise', 'vpn_status' => 'sometimes|in:off,connecting,connected,failed,permission_required', 'vpn_rx_bytes' => 'sometimes|integer|min:0', 'vpn_tx_bytes' => 'sometimes|integer|min:0', 'foreground' => 'required|boolean', 'push_token' => 'nullable|string|max:4096']);
         $device = $request->attributes->get('installation');
         $oldVersion = $device->version_code;
-        $device->update(array_merge($values, $extra, ['last_seen_at' => now()]));
+        DB::transaction(function () use ($device, $values, $extra): void {
+            $locked = Installation::whereKey($device->id)->lockForUpdate()->firstOrFail();
+            $rx = max(0, ($extra['vpn_rx_bytes'] ?? $locked->vpn_rx_bytes) - $locked->vpn_rx_bytes);
+            $tx = max(0, ($extra['vpn_tx_bytes'] ?? $locked->vpn_tx_bytes) - $locked->vpn_tx_bytes);
+            if ($rx || $tx) {
+                $key = ['installation_id' => $device->id, 'day' => now()->toDateString()];
+                DB::table('vpn_usage_days')->insertOrIgnore($key + ['rx_bytes' => 0, 'tx_bytes' => 0]);
+                DB::table('vpn_usage_days')->where($key)->incrementEach(['rx_bytes' => $rx, 'tx_bytes' => $tx]);
+            }
+            $device->update(array_merge($values, $extra, ['last_seen_at' => now()]));
+        });
         if ($oldVersion !== $device->version_code) {
             DB::table('telemetry_events')->insert(['id' => (string) Str::uuid(), 'installation_id' => $device->id, 'type' => 'app_updated', 'version_code' => $device->version_code, 'occurred_at' => now(), 'created_at' => now()]);
         }

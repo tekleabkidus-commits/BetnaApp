@@ -8,9 +8,8 @@ import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
-class SecretStore(context: Context) {
-    private val prefs = context.getSharedPreferences("private-installation",Context.MODE_PRIVATE)
-    private val alias = "appcontrol.installation-token"
+class SecretStore(context: Context, name:String="private-installation", private val alias:String="appcontrol.installation-token") {
+    private val prefs = context.getSharedPreferences(name,Context.MODE_PRIVATE)
     private fun key(): SecretKey {
         val store=KeyStore.getInstance("AndroidKeyStore");store.load(null)
         (store.getKey(alias,null) as? SecretKey)?.let{return it}
