@@ -18,7 +18,7 @@ use Illuminate\Validation\Rule;
 
 class InstallationController extends Controller
 {
-    private const EVENTS = ['vpn_connected', 'vpn_failed', 'cache_cleared', 'login_attempt', 'app_background', 'startup', 'app_crash', 'renderer_failed', 'ui_stall', 'app_open', 'app_updated', 'page_failed', 'page_loaded', 'dns_failed', 'tab_opened', 'tab_closed', 'tab_expired', 'retry', 'notification_received', 'notification_opened', 'notification_suppressed', 'popup_displayed', 'banner_displayed', 'campaign_clicked', 'campaign_dismissed', 'campaign_failed', 'update_prompted', 'update_clicked', 'update_downloaded', 'update_failed'];
+    private const EVENTS = ['vpn_connected', 'vpn_failed', 'cache_cleared', 'login_attempt', 'login_detected', 'app_exit', 'app_background', 'startup', 'app_crash', 'renderer_failed', 'ui_stall', 'app_open', 'app_updated', 'page_failed', 'page_loaded', 'dns_failed', 'tab_opened', 'tab_closed', 'tab_expired', 'retry', 'notification_received', 'notification_opened', 'notification_suppressed', 'popup_displayed', 'banner_displayed', 'campaign_clicked', 'campaign_dismissed', 'campaign_failed', 'update_prompted', 'update_clicked', 'update_downloaded', 'update_failed'];
 
     private function metadata(Request $r): array
     {

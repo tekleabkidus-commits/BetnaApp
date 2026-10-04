@@ -8,7 +8,7 @@
 @php
     $latestVersion = $versions->first();
     $latestShare = $total && $latestVersion ? round($latestVersion->total / $total * 100, 1) : 0;
-    $canOperate = in_array(auth()->user()->role, ['owner', 'operator']);
+    $canOperate = in_array(auth()->user()->role, ['owner', 'operator', 'super_admin']);
 @endphp
 <div class="stats metric-grid">
     <x-admin.stat label="Total installations" :value="number_format($total)" note="All registered app installations" icon="devices" />
@@ -24,7 +24,7 @@
         <div class="chart-summary"><span><strong>{{ number_format($weekly) }}</strong> active in 7 days</span><span><strong>{{ number_format($monthly) }}</strong> active in 30 days</span><span class="chart-legend"><i></i> App openings</span></div>
     </section>
     <section class="panel">
-        <div class="panel-heading"><div><h2>Version adoption</h2><p>Latest version observed on a device</p></div><a class="panel-link" href="{{ route('admin.releases') }}">Releases <x-admin.icon name="arrow" size="14" /></a></div>
+        <div class="panel-heading"><div><h2>Version adoption</h2><p>Latest version observed on a device</p></div>@if(auth()->user()->canAccessAdminRoute('admin.releases'))<a class="panel-link" href="{{ route('admin.releases') }}">Releases <x-admin.icon name="arrow" size="14" /></a>@endif</div>
         @if($latestVersion)
             <div class="version-highlight"><svg class="adoption-ring" viewBox="0 0 100 100" role="img" aria-label="{{ $latestShare }} percent on latest observed version"><circle class="ring-track" cx="50" cy="50" r="40" /><circle class="ring-progress" cx="50" cy="50" r="40" stroke-dasharray="{{ $latestShare * 2.51327 }} 251.327" /></svg><div><div class="version-share">{{ $latestShare }}<span style="font-size:17px">%</span></div><div class="version-caption">Using v{{ $latestVersion->version_name }}<br>{{ number_format($latestVersion->total) }} installations</div></div></div>
             <div class="version-list">@foreach($versions->take(3) as $row)@php($share = $total ? round($row->total / $total * 100, 1) : 0)<div class="version-item"><div class="version-row"><strong>v{{ $row->version_name }}</strong><span>{{ $share }}% · {{ number_format($row->total) }}</span></div><div class="progress-track" style="--progress:{{ $share }}%"><span></span></div></div>@endforeach</div>
@@ -35,7 +35,7 @@
 </div>
 <div class="operations-grid">
     <a class="operation-card" href="{{ route('admin.campaigns') }}"><span class="operation-icon"><x-admin.icon name="campaign" /></span><span><strong>Engage your audience</strong><small>Notifications, popups and banners</small></span><x-admin.icon name="arrow" /></a>
-    <a class="operation-card" href="{{ route('admin.configuration') }}"><span class="operation-icon"><x-admin.icon name="globe" /></span><span><strong>Connection settings</strong><small>Website, DNS and browser tabs</small></span><x-admin.icon name="arrow" /></a>
+    @if(auth()->user()->canAccessAdminRoute('admin.configuration'))<a class="operation-card" href="{{ route('admin.configuration') }}"><span class="operation-icon"><x-admin.icon name="globe" /></span><span><strong>Connection settings</strong><small>Website, DNS and browser tabs</small></span><x-admin.icon name="arrow" /></a>@endif
     <a class="operation-card" href="{{ route($canOperate ? 'admin.locations' : 'admin.installations') }}"><span class="operation-icon"><x-admin.icon :name="$canOperate ? 'pin' : 'devices'" /></span><span><strong>{{ $canOperate ? 'Explore location insights' : 'Explore your installations' }}</strong><small>{{ $canOperate ? 'Consented locations and device reports' : 'Versions, activity and preferences' }}</small></span><x-admin.icon name="arrow" /></a>
 </div>
 <section class="panel filter-panel"><div class="filter-heading"><x-admin.icon name="filter" size="16" />Report filters</div><form class="filter" method="get"><label>From<input type="date" name="from" value="{{ request('from') }}"></label><label>To<input type="date" name="to" value="{{ request('to') }}"></label><label>Version code<input type="number" name="version" min="1" value="{{ request('version') }}" placeholder="All versions"></label><label>Language<input name="language" placeholder="en / am" value="{{ request('language') }}"></label><label>Manufacturer<input name="manufacturer" value="{{ request('manufacturer') }}" placeholder="All brands"></label><label>Model<input name="model" value="{{ request('model') }}" placeholder="All models"></label><label>Android API<input name="android" type="number" min="26" max="100" value="{{ request('android') }}" placeholder="All versions"></label><button>Apply filters</button>@if(request()->query())<a class="button secondary" href="{{ route('admin.dashboard') }}">Reset</a>@endif</form><p class="table-caption">Filters apply to event activity and the app-opening chart. Heartbeat totals and version adoption cover all installations.</p></section>

@@ -402,7 +402,7 @@ class AdminController extends Controller
 
     public function saveStaff(Request $r): RedirectResponse
     {
-        $data = $r->validate(['name' => 'required|string|max:100', 'email' => 'required|email|unique:users', 'password' => 'required|string|min:14|max:200', 'role' => ['required', Rule::in(['owner', 'operator', 'viewer'])]]);
+        $data = $r->validate(['name' => 'required|string|max:100', 'email' => 'required|email|unique:users', 'password' => 'required|string|min:14|max:200', 'role' => ['required', Rule::in(User::ROLES)]]);
         $role = $data['role'];
         unset($data['role']);
         $user = User::create($data);

@@ -1,6 +1,6 @@
 @php
     $role = auth()->user()->role;
-    $canOperate = in_array($role, ['owner', 'operator']);
+    $canOperate = in_array($role, ['owner', 'operator', 'super_admin']);
     $groups = [
         'Workspace' => [
             ['dashboard', 'Overview', 'grid', 'admin.dashboard', true],
@@ -23,6 +23,9 @@
             ['staff', 'Staff access', 'users', 'admin.staff*', $role === 'owner'],
         ],
     ];
+    $groups = array_filter(array_map(function ($links) {
+        return array_filter($links, fn ($link) => $link[4] && auth()->user()->canAccessAdminRoute('admin.'.$link[0]));
+    }, $groups));
     $descriptions = [
         'admin.dashboard' => 'A clear view of your app, audience and operations.',
         'admin.installations' => 'Understand each installation and manage your test devices.',
@@ -75,13 +78,13 @@
         </nav>
         <div class="sidebar-bottom">
             <a class="security-link" href="{{ route('two-factor.recovery') }}"><x-admin.icon name="shield" /><span>Account security<small>Authenticator & recovery</small></span><x-admin.icon name="chevron" size="16" /></a>
-            <div class="sidebar-account"><span class="avatar">{{ $initials }}</span><span><strong>{{ $userName }}</strong><small>{{ ucfirst($role) }} access</small></span><form method="post" action="{{ route('logout') }}">@csrf<button class="icon-button" title="Sign out" aria-label="Sign out"><x-admin.icon name="logout" size="18" /></button></form></div>
+            <div class="sidebar-account"><span class="avatar">{{ $initials }}</span><span><strong>{{ $userName }}</strong><small>{{ auth()->user()->roleLabel() }} access</small></span><form method="post" action="{{ route('logout') }}">@csrf<button class="icon-button" title="Sign out" aria-label="Sign out"><x-admin.icon name="logout" size="18" /></button></form></div>
         </div>
     </aside>
     <div class="workspace-main">
         <div class="topbar">
             <div class="topbar-left"><button class="icon-button mobile-menu" data-nav-open aria-controls="workspace-navigation" aria-expanded="false" aria-label="Open navigation"><x-admin.icon name="menu" /></button><div class="breadcrumbs"><span>Workspace</span><x-admin.icon name="chevron" size="14" /><strong>@yield('title', 'Overview')</strong></div></div>
-            <div class="topbar-tools"><button class="search-launch" data-command-open aria-label="Search workspace pages"><x-admin.icon name="search" size="18" /><span>Go to a page</span><kbd>⌘ K</kbd></button><button class="icon-button theme-toggle" data-theme-toggle aria-label="Change appearance"><span class="theme-light"><x-admin.icon name="sun" /></span><span class="theme-dark"><x-admin.icon name="moon" /></span></button><details class="profile-menu"><summary aria-label="Account menu"><span class="avatar avatar-small">{{ $initials }}</span></summary><div class="profile-popover"><strong>{{ $userName }}</strong><small>{{ ucfirst($role) }} access</small><a href="{{ route('two-factor.recovery') }}"><x-admin.icon name="key" size="18" />Account security</a><form method="post" action="{{ route('logout') }}">@csrf<button class="text-button"><x-admin.icon name="logout" size="18" />Sign out</button></form></div></details></div>
+            <div class="topbar-tools"><button class="search-launch" data-command-open aria-label="Search workspace pages"><x-admin.icon name="search" size="18" /><span>Go to a page</span><kbd>⌘ K</kbd></button><button class="icon-button theme-toggle" data-theme-toggle aria-label="Change appearance"><span class="theme-light"><x-admin.icon name="sun" /></span><span class="theme-dark"><x-admin.icon name="moon" /></span></button><details class="profile-menu"><summary aria-label="Account menu"><span class="avatar avatar-small">{{ $initials }}</span></summary><div class="profile-popover"><strong>{{ $userName }}</strong><small>{{ auth()->user()->roleLabel() }} access</small><a href="{{ route('two-factor.recovery') }}"><x-admin.icon name="key" size="18" />Account security</a><form method="post" action="{{ route('logout') }}">@csrf<button class="text-button"><x-admin.icon name="logout" size="18" />Sign out</button></form></div></details></div>
         </div>
         <main id="main-content" tabindex="-1">
             <header class="page-header"><div><div class="eyebrow">BETNA WORKSPACE</div><h1>@yield('heading', trim($__env->yieldContent('title', 'Overview')))</h1><p class="page-description">@yield('description', $descriptions[request()->route()?->getName()] ?? 'Manage your app with confidence.')</p></div><div class="page-header-actions">@hasSection('page-actions') @yield('page-actions') @else <span class="date-label"><x-admin.icon name="calendar" size="16" />{{ now()->timezone('Africa/Addis_Ababa')->format('d M Y') }}</span> @endif</div></header>

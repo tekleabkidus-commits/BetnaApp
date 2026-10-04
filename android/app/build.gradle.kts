@@ -9,8 +9,8 @@ android {
         minSdk = 26
         targetSdk = 35
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        versionCode = setting("VERSION_CODE", "5").toInt()
-        versionName = setting("VERSION_NAME", "0.5.0")
+        versionCode = setting("VERSION_CODE", "6").toInt()
+        versionName = setting("VERSION_NAME", "0.6.0")
         resValue("string", "app_name", setting("APP_NAME", "Betna"))
         buildConfigField("String", "API_URLS", quote(setting("API_URLS")))
         buildConfigField("String", "CONFIG_PUBLIC_KEY", quote(setting("CONFIG_PUBLIC_KEY")))

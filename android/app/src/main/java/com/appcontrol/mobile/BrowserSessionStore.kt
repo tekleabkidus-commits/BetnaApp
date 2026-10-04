@@ -9,6 +9,7 @@ import android.util.AtomicFile
 import java.io.File
 import java.security.KeyStore
 import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
@@ -19,6 +20,11 @@ class BrowserSessionStore(context: Context) {
     private val file = AtomicFile(File(context.filesDir, "browser-session.bin"))
     private val executor = Executors.newSingleThreadExecutor()
     private val alias = "betna.browser-session"
+    private var closed = false
+    @Synchronized private fun submit(work: () -> Unit): Boolean {
+        if (closed) return false
+        return try { executor.execute(work); true } catch (_: RejectedExecutionException) { false }
+    }
     private fun key(): SecretKey {
         val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
         (store.getKey(alias, null) as? SecretKey)?.let { return it }
@@ -27,7 +33,7 @@ class BrowserSessionStore(context: Context) {
                 .setBlockModes(KeyProperties.BLOCK_MODE_GCM).setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE).build())
         }.generateKey()
     }
-    fun read(callback: (Bundle?) -> Unit) { executor.execute {
+    fun read(callback: (Bundle?) -> Unit) { if (!submit {
         val restored = runCatching {
             require(file.baseFile.length() in 13..12_000_000)
             val bytes = file.openRead().use { it.readBytes() }
@@ -39,18 +45,18 @@ class BrowserSessionStore(context: Context) {
             finally { parcel.recycle() }
         }.getOrNull()
         callback(restored)
-    } }
+    }) callback(null) }
     fun write(snapshot: Bundle) {
-        val parcel = Parcel.obtain()
-        val bytes = try { parcel.writeBundle(snapshot);parcel.marshall() } finally { parcel.recycle() }
-        if (bytes.size > 10_000_000) return
-        executor.execute { runCatching {
+        submit { runCatching {
+            val parcel = Parcel.obtain()
+            val bytes = try { parcel.writeBundle(snapshot);parcel.marshall() } finally { parcel.recycle() }
+            if (bytes.size > 10_000_000) return@runCatching
             val cipher = Cipher.getInstance("AES/GCM/NoPadding").apply { init(Cipher.ENCRYPT_MODE,key()) }
             val encrypted = cipher.iv + cipher.doFinal(bytes)
             val output = file.startWrite()
             try { output.write(encrypted);file.finishWrite(output) } catch(e: Exception) { file.failWrite(output);throw e }
         } }
     }
-    fun clear() { executor.execute { file.delete() } }
-    fun close() { executor.shutdown() }
+    fun clear() { submit { runCatching { file.delete() } } }
+    @Synchronized fun close() { closed = true; executor.shutdown() }
 }

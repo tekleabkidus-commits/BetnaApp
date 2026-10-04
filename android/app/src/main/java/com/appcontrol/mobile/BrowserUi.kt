@@ -1,6 +1,6 @@
 package com.appcontrol.mobile
 
-import android.app.AlertDialog
+import android.content.res.Configuration
 import android.content.Context
 import android.content.res.ColorStateList
 import android.graphics.Color
@@ -13,20 +13,27 @@ import android.widget.TextView
 
 object BrowserUi {
     val red=Color.rgb(200,33,56)
-    val ink=Color.rgb(31,35,52)
-    val muted=Color.rgb(111,119,138)
+    var ink=Color.rgb(31,35,52)
+        private set
+    var muted=Color.rgb(111,119,138)
+        private set
+    fun dark(context:Context)=context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+    fun refresh(context:Context){ink=if(dark(context))Color.rgb(246,246,249) else Color.rgb(31,35,52);muted=if(dark(context))Color.rgb(173,175,188) else Color.rgb(111,119,138)}
+    fun canvas(context:Context)=if(dark(context))Color.rgb(29,30,36) else Color.WHITE
+    fun fill(context:Context)=if(dark(context))Color.rgb(42,43,52) else Color.rgb(243,244,248)
+    fun line(context:Context)=if(dark(context))Color.rgb(66,67,76) else Color.rgb(222,224,232)
+    fun text(context:Context,label:CharSequence,size:Int=15,bold:Boolean=false)=TextView(context).apply{text=label;textSize=size.toFloat();setTextColor(ink);typeface=Typeface.create(if(bold)"sans-serif-medium" else "sans-serif",Typeface.NORMAL)}
     fun dp(context:Context,n:Int)=(context.resources.displayMetrics.density*n).toInt()
     fun surface(context:Context,color:Int=Color.WHITE,radius:Int=20)=GradientDrawable().apply{setColor(color);cornerRadius=dp(context,radius).toFloat()}
     fun button(context:Context,label:String,primary:Boolean=false,action:()->Unit)=Button(context).apply{
         text=label;isAllCaps=false;textSize=14f;setTextColor(if(primary)Color.WHITE else ink);typeface=Typeface.create("sans-serif-medium",Typeface.NORMAL)
-        background=RippleDrawable(ColorStateList.valueOf(0x22444444),surface(context,if(primary)red else Color.rgb(242,243,248),12),null)
-        minHeight=dp(context,48);setPadding(dp(context,16),0,dp(context,16),0);setOnClickListener{action()}
+        background=RippleDrawable(ColorStateList.valueOf(0x22444444),surface(context,if(primary)red else fill(context),15),null)
+        minHeight=dp(context,48);setPadding(dp(context,16),dp(context,10),dp(context,16),dp(context,10));setOnClickListener{action()}
     }
-    fun polish(dialog:AlertDialog){
-        dialog.window?.setBackgroundDrawable(surface(dialog.context));dialog.window?.setDimAmount(.42f)
-        for(which in listOf(AlertDialog.BUTTON_POSITIVE,AlertDialog.BUTTON_NEGATIVE,AlertDialog.BUTTON_NEUTRAL)){
+    fun polish(dialog:BetnaDialog){
+        for(which in listOf(BetnaDialog.BUTTON_POSITIVE,BetnaDialog.BUTTON_NEGATIVE,BetnaDialog.BUTTON_NEUTRAL)){
             dialog.getButton(which)?.apply{isAllCaps=false;textSize=14f;setTextColor(if(which==AlertDialog.BUTTON_POSITIVE)red else muted);typeface=Typeface.create("sans-serif-medium",Typeface.NORMAL)}
         }
-        dialog.findViewById<TextView>(android.R.id.message)?.apply{setTextColor(ink);textSize=16f}
+        dialog.getButton(BetnaDialog.BUTTON_POSITIVE)?.setTextColor(Color.WHITE)
     }
 }

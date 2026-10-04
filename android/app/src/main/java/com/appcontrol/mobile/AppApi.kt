@@ -31,6 +31,8 @@ class AppApi(private val context:Context, private val dns:AppDns) {
     private val deviceIdentifier by lazy { DeviceIdentity.identifier(context) }
     val preferences=context.getSharedPreferences("appcontrol",Context.MODE_PRIVATE)
     private val executor=Executors.newSingleThreadExecutor()
+    private val eventStorage=Executors.newSingleThreadExecutor()
+    private var storagePending=false
     private val main=Handler(Looper.getMainLooper())
     val client:OkHttpClient=OkHttpClient.Builder().socketFactory(ControlSocketFactory(context)).dns(dns).proxy(Proxy.NO_PROXY).retryOnConnectionFailure(false).followSslRedirects(false).connectTimeout(12,TimeUnit.SECONDS).readTimeout(20,TimeUnit.SECONDS).build()
     val websiteClient:OkHttpClient by lazy{OkHttpClient.Builder().socketFactory(WebsiteSocketFactory(context)).dns(dns).proxy(Proxy.NO_PROXY).retryOnConnectionFailure(false).followSslRedirects(false).addInterceptor{chain->check((context.applicationContext as App).vpn.usable());chain.proceed(chain.request())}.build()}
@@ -113,7 +115,15 @@ class AppApi(private val context:Context, private val dns:AppDns) {
         if(durationMs!=null)event.put("duration_ms",durationMs.coerceIn(0,3600000))
         queue.put(event);while(queue.length()>500)queue.remove(0);persistQueue()
     }
-    @Synchronized private fun persistQueue(){val temp=File(queueFile.parent,"events.tmp");temp.writeText(queue.toString());check(temp.renameTo(queueFile))}
+    @Synchronized private fun persistQueue(){
+        if(storagePending)return
+        storagePending=true
+        eventStorage.execute{
+            val payload=synchronized(this){queue.toString()}
+            runCatching{val file=android.util.AtomicFile(queueFile);val output=file.startWrite();try{output.write(payload.toByteArray());file.finishWrite(output)}catch(e:Exception){file.failWrite(output);throw e}}
+            synchronized(this){storagePending=false;if(queue.toString()!=payload)persistQueue()}
+        }
+    }
     private fun flush(){
         val items=JSONArray();synchronized(this){val cutoff=Instant.now().minusSeconds(6*86400).toString();for(i in queue.length()-1 downTo 0)if(queue.getJSONObject(i).getString("occurred_at")<cutoff)queue.remove(i);for(i in 0 until minOf(100,queue.length()))items.put(queue.get(i))}
         if(items.length()==0)return

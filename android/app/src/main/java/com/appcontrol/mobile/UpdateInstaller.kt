@@ -13,6 +13,8 @@ import java.security.MessageDigest
 import java.util.concurrent.Executors
 class UpdateInstaller(private val activity:Activity,private val api:AppApi){
     private val executor=Executors.newSingleThreadExecutor()
+    @Volatile private var closed=false
+    @Volatile private var downloading=false
     var pendingFile:File?=null
     private fun digest(bytes:ByteArray)=MessageDigest.getInstance("SHA-256").digest(bytes).joinToString(""){"%02x".format(it)}
     @Suppress("DEPRECATION") private fun verifyApk(file:File,release:JSONObject){
@@ -28,6 +30,8 @@ class UpdateInstaller(private val activity:Activity,private val api:AppApi){
         require(!a.isNullOrEmpty()&&!b.isNullOrEmpty()&&a.map{digest(it.toByteArray())}.toSet()==b.map{digest(it.toByteArray())}.toSet()){"APK signing identity does not match"}
     }
     fun download(release:JSONObject,callback:(String,Boolean)->Unit){
+        if(closed||downloading||activity.isDestroyed||activity.isFinishing)return
+        downloading=true
         api.event("update_clicked")
         executor.execute{
             val result=runCatching{
@@ -51,18 +55,23 @@ class UpdateInstaller(private val activity:Activity,private val api:AppApi){
                 require(complete){"Unable to download a verified update"};file
             }
             activity.runOnUiThread{
+                downloading=false
+                if(closed||activity.isDestroyed||activity.isFinishing)return@runOnUiThread
                 result.onSuccess{file->api.event("update_downloaded");pendingFile=file;callback("Download verified. Confirm installation in Android.",true);installIfAllowed()}
                     .onFailure{api.event("update_failed",code="download_or_verification");callback("The update could not be verified or downloaded. Please retry.",false)}
             }
         }
     }
     fun installIfAllowed(){
+        if(closed||activity.isDestroyed||activity.isFinishing)return
         val file=pendingFile?:return
+        if(!file.exists()){pendingFile=null;return}
         if(!activity.packageManager.canRequestPackageInstalls()){
-            activity.startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,Uri.parse("package:${activity.packageName}")));return
+            runCatching{activity.startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,Uri.parse("package:${activity.packageName}")))}.onFailure{api.event("update_failed",code="INSTALL_PERMISSION_UNAVAILABLE")};return
         }
         pendingFile=null
         val uri=FileProvider.getUriForFile(activity,"${activity.packageName}.files",file)
-        activity.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(uri,"application/vnd.android.package-archive").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
+        runCatching{activity.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(uri,"application/vnd.android.package-archive").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))}.onFailure{pendingFile=file;api.event("update_failed",code="INSTALLER_UNAVAILABLE")}
     }
+    fun close(){closed=true;executor.shutdownNow()}
 }

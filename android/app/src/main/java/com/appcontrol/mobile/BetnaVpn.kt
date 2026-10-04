@@ -57,7 +57,10 @@ class BetnaVpn(private val context:Context,private val api:AppApi):Tunnel {
         if(!settings.optBoolean("provisioned")||settings.optString("address").isBlank()){status("failed");main.post{callback(false)};return}
         if(usable()&&activeSettings==settingsKey){main.post{callback(true)};return}
         connected=false
-        status("connecting");androidx.core.content.ContextCompat.startForegroundService(context,Intent(context,BetnaVpnMonitor::class.java))
+        status("connecting")
+        if(runCatching{androidx.core.content.ContextCompat.startForegroundService(context,Intent(context,BetnaVpnMonitor::class.java))}.isFailure){
+            status("failed");api.event("vpn_failed",code="FOREGROUND_CONNECTION_UNAVAILABLE");main.post{callback(false)};return
+        }
         executor.execute{
             var success=false
             val servers=settings.optJSONArray("servers")

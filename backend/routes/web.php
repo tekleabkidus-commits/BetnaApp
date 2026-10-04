@@ -21,7 +21,7 @@ Route::middleware('auth')->group(function (): void {
     Route::get('/security/challenge', [TwoFactorController::class, 'challenge'])->name('two-factor.challenge');
     Route::post('/security/challenge', [TwoFactorController::class, 'verify'])->middleware('throttle:two-factor')->name('two-factor.verify');
 });
-Route::middleware(['auth', 'two-factor'])->group(function (): void {
+Route::middleware(['auth', 'two-factor', 'role'])->group(function (): void {
     Route::get('/security/recovery', [TwoFactorController::class, 'recovery'])->name('two-factor.recovery');
     Route::post('/security/recovery', [TwoFactorController::class, 'rotate'])->middleware('throttle:two-factor')->name('two-factor.rotate');
     Route::get('/launch', [LaunchController::class, 'index'])->name('admin.launch');
