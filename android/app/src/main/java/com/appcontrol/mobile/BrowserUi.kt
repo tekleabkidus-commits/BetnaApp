@@ -7,10 +7,13 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.RippleDrawable
+import android.graphics.drawable.StateListDrawable
 import android.view.View
 import android.widget.Button
 import android.widget.TextView
 import android.widget.EditText
+import android.widget.CheckBox
+import android.widget.LinearLayout
 
 object BrowserUi {
     val red=Color.rgb(200,33,56)
@@ -31,9 +34,16 @@ object BrowserUi {
     }
     fun dp(context:Context,n:Int)=(context.resources.displayMetrics.density*n).toInt()
     fun surface(context:Context,color:Int=Color.WHITE,radius:Int=20)=GradientDrawable().apply{setColor(color);cornerRadius=dp(context,radius).toFloat()}
+    fun checkbox(context:Context,label:String)=CheckBox(context).apply{
+        text=label;textSize=13f;setTextColor(muted);minHeight=dp(context,44);compoundDrawablePadding=dp(context,8)
+        val empty=GradientDrawable().apply{shape=GradientDrawable.OVAL;setColor(Color.TRANSPARENT);setSize(dp(context,20),dp(context,20));setStroke(dp(context,1),muted)}
+        buttonTintList=null;buttonDrawable=StateListDrawable().apply{addState(intArrayOf(android.R.attr.state_checked),context.getDrawable(R.drawable.ic_option_checked));addState(intArrayOf(),empty)}
+    }
     fun button(context:Context,label:String,primary:Boolean=false,action:()->Unit)=Button(context).apply{
         text=label;isAllCaps=false;textSize=14f;setTextColor(if(primary)Color.WHITE else ink);typeface=Typeface.create("sans-serif-medium",Typeface.NORMAL)
         background=RippleDrawable(ColorStateList.valueOf(0x22444444),surface(context,if(primary)red else fill(context),15),null)
+        stateListAnimator=null;elevation=0f
+        layoutParams=LinearLayout.LayoutParams(-1,-2).apply{topMargin=dp(context,6);bottomMargin=dp(context,2)}
         minHeight=dp(context,48);setPadding(dp(context,16),dp(context,10),dp(context,16),dp(context,10));setOnClickListener{action()}
     }
     fun polish(dialog:BetnaDialog){

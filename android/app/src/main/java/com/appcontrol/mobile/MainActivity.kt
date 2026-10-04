@@ -100,6 +100,7 @@ class MainActivity:ComponentActivity(){
     private val filePicker=registerForActivityResult(ActivityResultContracts.StartActivityForResult()){result->fileCallback?.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(result.resultCode,result.data));fileCallback=null}
     private fun dp(value:Int)=(value*resources.displayMetrics.density).toInt()
     private fun button(label:String,description:String=label,action:()->Unit)=BrowserUi.button(this,label,action=action).apply{contentDescription=description}
+    private fun addFullPage(body:LinearLayout){content.addView(ScrollView(this).apply{isFillViewport=true;isVerticalScrollBarEnabled=false;addView(body)},FrameLayout.LayoutParams(-1,-1))}
     override fun onCreate(savedInstanceState:Bundle?){
         super.onCreate(savedInstanceState);api=(application as App).api;installer=UpdateInstaller(this,api);sessionStore=BrowserSessionStore(this);watchdog=UiWatchdog(api);vault=PasswordVault(this);locationReporter=LocationReporter(this,api)
         api.configurationListener={if(alive()&&initialized){processCommands(false);applyVpn(false);expireTabs();checkUpdate();checkMaintenance();tabs.forEach{it.web?.let{view->installPasswordBridge(view)}};locationReporter.stop();if(resumed)locationReporter.start()}}
@@ -247,10 +248,10 @@ class MainActivity:ComponentActivity(){
     private fun showStartup(text:String,retry:Boolean=false){
         if(!alive())return
         content.removeAllViews();val column=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;gravity=Gravity.CENTER;setPadding(dp(24),dp(30),dp(24),dp(30))}
-        column.addView(TextView(this).apply{this.text=text;textSize=20f;gravity=Gravity.CENTER})
-        if(!retry)column.addView(ProgressBar(this))
+        column.addView(BrowserUi.text(this,text,20,true).apply{gravity=Gravity.CENTER})
+        if(!retry)column.addView(ProgressBar(this).apply{indeterminateTintList=android.content.res.ColorStateList.valueOf(BrowserUi.red)})
         if(retry){column.addView(button("Retry"){connect()});column.addView(button("Test connection"){testConnection()});column.addView(button("Support"){support()})}
-        content.addView(column,FrameLayout.LayoutParams(-1,-1))
+        addFullPage(column)
     }
     @SuppressLint("SetJavaScriptEnabled") private fun createWebView():WebView=WebView(this).apply{
         installPasswordBridge(this)
@@ -362,7 +363,11 @@ class MainActivity:ComponentActivity(){
         tabs.toList().forEach{tab->
             val row=LinearLayout(this).apply{gravity=Gravity.CENTER_VERTICAL;background=BrowserUi.surface(this@MainActivity,if(tab===selected)BrowserUi.fill(this@MainActivity) else BrowserUi.canvas(this@MainActivity),18);setPadding(dp(6),dp(5),dp(4),dp(5))}
             val host=Uri.parse(tab.web?.url?:tab.lastUrl?:"").host?:"Website"
-            row.addView(button((if(tab.main)"Home · " else "")+tab.title+"\n"+host){dialog.dismiss();if(tab in tabs)showTab(tab)},LinearLayout.LayoutParams(0,-2,1f))
+            val title=(if(tab.main)"Home · " else "")+tab.title
+            val pick=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;minimumHeight=dp(60);gravity=Gravity.CENTER_VERTICAL;setPadding(dp(14),dp(10),dp(12),dp(10));isFocusable=true;contentDescription="$title, $host";setOnClickListener{dialog.dismiss();if(tab in tabs)showTab(tab)}}
+            pick.addView(BrowserUi.text(this,title,15,true).apply{maxLines=1;ellipsize=android.text.TextUtils.TruncateAt.END})
+            pick.addView(BrowserUi.text(this,host,12).apply{maxLines=1;ellipsize=android.text.TextUtils.TruncateAt.END;setTextColor(BrowserUi.muted);setPadding(0,dp(4),0,0)})
+            row.addView(pick,LinearLayout.LayoutParams(0,-2,1f))
             if(!tab.main)row.addView(button("×","Close ${tab.title}"){closeTab(tab,false);dialog.dismiss();if(tabs.size>1)showTabs()},LinearLayout.LayoutParams(dp(48),dp(48)))
             column.addView(row,LinearLayout.LayoutParams(-1,-2).apply{topMargin=dp(8)})
         }
@@ -373,8 +378,8 @@ class MainActivity:ComponentActivity(){
         val network=getSystemService(ConnectivityManager::class.java);val available=network.getNetworkCapabilities(network.activeNetwork)?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)==true
         val code=UUID.randomUUID().toString().take(8)
         val column=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;gravity=Gravity.CENTER;setPadding(dp(24),dp(24),dp(24),dp(24))}
-        column.addView(TextView(this).apply{text=if(available)"Website could not be reached" else "No internet connection detected";textSize=22f;gravity=Gravity.CENTER})
-        column.addView(TextView(this).apply{text="Your last action has not been automatically repeated.\nSupport reference: $code";gravity=Gravity.CENTER;setPadding(0,dp(14),0,dp(20))})
+        column.addView(BrowserUi.text(this,if(available)"Website could not be reached" else "No internet connection detected",22,true).apply{gravity=Gravity.CENTER})
+        column.addView(BrowserUi.text(this,"Your last action has not been automatically repeated.\nSupport reference: $code",14).apply{gravity=Gravity.CENTER;setTextColor(BrowserUi.muted);setPadding(0,dp(14),0,dp(20))})
         api.event("page_failed",host=Uri.parse(tab.web?.url?:tab.lastUrl?:"").host,code="REF_$code")
         column.addView(BrowserUi.button(this,"Retry",true){retryTab(tab)})
         column.addView(button("Test connection"){testConnection()})
@@ -382,7 +387,7 @@ class MainActivity:ComponentActivity(){
         if(tab.main){val backups=api.configuration.optJSONArray("backup_domains");if(backups!=null&&backups.length()>0)column.addView(button("Try backup homepage"){
             AlertDialog.Builder(this).setTitle("Open a backup homepage?").setMessage("This opens a new homepage. Your previous action will not be repeated, and you may need to sign in again.").setPositiveButton("Open"){_,_->tab.failed=false;showTab(tab);tab.view.loadUrl(backups.getString(0))}.setNegativeButton("Cancel",null).show()
         })}
-        content.addView(column,FrameLayout.LayoutParams(-1,-1))
+        addFullPage(column)
     }
     private fun navigate(url:String){val uri=runCatching{Uri.parse(url)}.getOrNull()?:return;if(uri.scheme !in listOf("http","https")){external(uri);return};if(connectionBlocked||uri.userInfo!=null||(!BuildConfig.DEBUG&&uri.scheme!="https"))return
         val mainHost=Uri.parse(api.configuration.optString("website_url",BuildConfig.WEBSITE_URL)).host
@@ -462,7 +467,7 @@ class MainActivity:ComponentActivity(){
         val label=BrowserUi.text(this,"BETNA · "+if(banner)"ANNOUNCEMENT" else "FOR YOU",11,true).apply{setTextColor(BrowserUi.red);setPadding(0,dp(4),0,dp(10))};column.addView(label)
         if(banner)column.addView(BrowserUi.text(this,message.optString("title"),19,true))
         column.addView(BrowserUi.text(this,message.optString("body"),15).apply{setTextColor(BrowserUi.muted);setLineSpacing(dp(3).toFloat(),1f);setPadding(0,dp(10),0,dp(14))})
-        val optOut=CheckBox(this).apply{text="Do not show this again";textSize=12f;setTextColor(BrowserUi.muted);buttonTintList=android.content.res.ColorStateList.valueOf(BrowserUi.red);minHeight=dp(44)}
+        val optOut=BrowserUi.checkbox(this,"Do not show this again").apply{textSize=12f}
         if(message.optBoolean("allow_opt_out",true))column.addView(optOut)
         var clicked=false;var dismissed=false
         val finish={if(!dismissed){dismissed=true;messageOpen=false;if(!clicked)api.event("campaign_dismissed",id);if(optOut.isChecked)api.optOut(id)}}
@@ -534,7 +539,7 @@ class MainActivity:ComponentActivity(){
         box.addView(BrowserUi.text(this,"Update required",24,true).apply{gravity=Gravity.CENTER})
         box.addView(BrowserUi.text(this,"Install the latest Betna version to continue. Your open tabs and saved logins stay on this phone.",15).apply{gravity=Gravity.CENTER;setTextColor(BrowserUi.muted);setPadding(0,dp(16),0,dp(22))})
         box.addView(BrowserUi.button(this,"Update Betna",true){checkUpdate()});box.addView(button("Telegram support"){support()})
-        content.addView(box,FrameLayout.LayoutParams(-1,-1))
+        addFullPage(box)
     }
     override fun onNewIntent(intent:Intent){super.onNewIntent(intent);setIntent(intent);if(intent.action==Intent.ACTION_MAIN&&initialized&&System.currentTimeMillis()-lastBackgroundAt>30000)beginOpening("app_open");receivePush(intent);pendingPushUrl?.let{if(initialized&&!requiredUpdate)navigate(it)};pendingPushUrl=null}
     private fun receivePush(intent:Intent){intent.getStringExtra("push_delivery")?.let{api.event("notification_opened",it);intent.removeExtra("push_delivery")};pendingPushUrl=intent.getStringExtra("push_url")?.takeIf{it.startsWith("https://")||it.startsWith("http://")};intent.removeExtra("push_url")}
@@ -592,7 +597,7 @@ class MainActivity:ComponentActivity(){
             box.addView(BrowserUi.text(this,notice.optString("title","Taking a short break"),24,true).apply{gravity=Gravity.CENTER})
             box.addView(BrowserUi.text(this,notice.optString("message"),15).apply{gravity=Gravity.CENTER;setTextColor(BrowserUi.muted);setPadding(0,dp(16),0,dp(22))})
             box.addView(BrowserUi.button(this,"Check again",true){api.refresh{_,_->checkMaintenance()}});box.addView(button("Telegram support"){support()})
-            content.addView(box,FrameLayout.LayoutParams(-1,-1));return
+            addFullPage(box);return
         }
         if(maintenanceRevision==revision)return
         maintenanceDialog?.dismiss();maintenanceRevision=revision
@@ -756,7 +761,7 @@ class MainActivity:ComponentActivity(){
         box.addView(TextView(this).apply{text="Betna is waiting for its required VPN connection. Your open tabs are retained. Contact support if the connection remains unavailable.";textSize=15f;setTextColor(BrowserUi.muted);gravity=Gravity.CENTER;setPadding(0,dp(16),0,dp(24))})
         box.addView(BrowserUi.button(this,"Retry connection",true){connectionBlocked=false;if(!initialized)connect()else api.refresh{_,_->applyVpn(true)}})
         if(android.net.VpnService.prepare(this)!=null)box.addView(button("Allow secure connection"){android.net.VpnService.prepare(this)?.let{vpnPermission.launch(it)}})
-        box.addView(button("Telegram support"){support()});content.addView(box,FrameLayout.LayoutParams(-1,-1))
+        box.addView(button("Telegram support"){support()});addFullPage(box)
     }
     private fun clearTemporaryFiles():Boolean=runCatching{
         (tabs.firstOrNull()?.web?:WebView(this).also{it.clearCache(true);it.destroy();return@runCatching}).clearCache(true)

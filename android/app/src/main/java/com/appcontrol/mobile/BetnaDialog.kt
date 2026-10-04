@@ -11,7 +11,6 @@ import android.view.ViewGroup
 import android.view.Window
 import android.view.WindowManager
 import android.widget.Button
-import android.widget.CheckBox
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -107,8 +106,8 @@ class BetnaDialog private constructor(context:Context, private val sheet:Boolean
             view?.let { (it.parent as? ViewGroup)?.removeView(it);body.addView(it,LinearLayout.LayoutParams(-1,-2)) }
             items?.forEachIndexed { index,label ->
                 if(multiple!=null) {
-                    body.addView(CheckBox(context).apply {
-                        text=label;isChecked=multiple!!.getOrElse(index){false};minHeight=BrowserUi.dp(context,48);setTextColor(BrowserUi.ink);buttonTintList=android.content.res.ColorStateList.valueOf(BrowserUi.red)
+                    body.addView(BrowserUi.checkbox(context,label).apply {
+                        isChecked=multiple!!.getOrElse(index){false};minHeight=BrowserUi.dp(context,48);setTextColor(BrowserUi.ink)
                         setOnCheckedChangeListener { _,checked->multiListener?.onClick(dialog,index,checked) }
                     })
                 } else {

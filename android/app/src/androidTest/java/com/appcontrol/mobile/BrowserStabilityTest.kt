@@ -33,7 +33,7 @@ class BrowserStabilityTest {
     private val context get()=instrumentation.targetContext
     private var activeScenario:ActivityScenario<MainActivity>?=null
     private var historyWriter:java.util.concurrent.ExecutorService?=null
-    private val site="""<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><style>
+    private val site="""<!doctype html><html><head><title>Betna Home</title><meta name="viewport" content="width=device-width, initial-scale=1"><style>
         *{box-sizing:border-box}html,body{margin:0;height:100%;font-family:sans-serif;background:#f6f8f2;color:#283523}body{display:flex;flex-direction:column}.brand{background:#ffd52a;padding:18px 22px;font-size:25px;font-weight:bold;color:#7d321d}main{padding:24px 22px;flex:1}h1{font-size:24px}p{font-size:15px;color:#687663;line-height:1.5}input{display:block;padding:14px;border:1px solid #dae0d5;border-radius:12px;margin:12px 0;width:100%;font-size:16px;background:white}button{padding:15px;background:#ffd52a;color:#613c1c;border:0;border-radius:12px;width:100%;font-size:16px}nav{background:#ffd52a;display:flex;justify-content:space-around;padding:17px 6px;font-size:13px;color:#7d321d}a{display:block;margin-top:20px;color:#6d4824}
         </style></head><body><div class="brand">BETNA</div><main><h1 id="heading">Welcome back</h1><p>Website fixture for browser testing.</p><form id="login" onsubmit="return false"><input autocomplete="username" id="user" placeholder="Phone number"><input autocomplete="current-password" type="password" id="password" placeholder="Password"><button type="button" id="submit">Sign in</button></form><a id="external" href="https://other.test/">Open external page</a></main><nav><span>Sports</span><span>Games</span><span>Deposit</span><span>PromoCode</span><span>TV</span></nav><script>window.gameCheckpoint=73;</script></body></html>"""
 
@@ -105,6 +105,9 @@ class BrowserStabilityTest {
         return view is ViewGroup&&(0 until view.childCount).any{hasVisibleText(view.getChildAt(it),text)}
     }
     private fun screenshot(name:String){
+        val drawn=java.util.concurrent.CountDownLatch(1)
+        activeScenario?.onActivity{activity->val web=selectedWeb(activity);if(web?.isAttachedToWindow==true&&web.isShown)web.postVisualStateCallback(1,object:WebView.VisualStateCallback(){override fun onComplete(id:Long){drawn.countDown()}})else drawn.countDown()}?:drawn.countDown()
+        assertTrue("The website frame must be ready before capture",drawn.await(10,java.util.concurrent.TimeUnit.SECONDS))
         instrumentation.waitForIdleSync();SystemClock.sleep(200)
         val bitmap=instrumentation.uiAutomation.takeScreenshot() ?: throw AssertionError("The emulator display must be awake for visual review")
         val folder=context.getExternalFilesDir("ui-review")!!;folder.mkdirs()
