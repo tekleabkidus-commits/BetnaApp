@@ -75,8 +75,7 @@ class BrowserStabilityTest {
             api.configuration.put("website_url",BuildConfig.WEBSITE_URL);api.configurationListener?.invoke()
             val web=selectedWeb(activity)!!;val original=web.webViewClient
             val fixture=BuildConfig.WEBSITE_URL.trimEnd('/')+"/__betna_fixture__?id="+UUID.randomUUID()
-            // Use a real HTTPS navigation origin. loadData can expose an opaque message origin.
-            // Keep the production callbacks and origin checks intact while supplying offline HTML.
+            // Exercise the same HTTPS navigation and production origin checks as the real website.
             web.webViewClient=object:WebViewClient(){
                 override fun shouldInterceptRequest(view:WebView,request:WebResourceRequest):WebResourceResponse?=
                     if(request.url.toString()==fixture)WebResourceResponse("text/html","UTF-8",site.byteInputStream()) else original.shouldInterceptRequest(view,request)
@@ -101,11 +100,21 @@ class BrowserStabilityTest {
         if(view is ViewGroup)for(i in 0 until view.childCount)find(view.getChildAt(i),description)?.let{return it}
         return null
     }
+    private fun hasVisibleText(view:View,text:String):Boolean{
+        if(view is android.widget.TextView&&view.text.toString()==text&&view.isShown)return true
+        return view is ViewGroup&&(0 until view.childCount).any{hasVisibleText(view.getChildAt(it),text)}
+    }
     private fun screenshot(name:String){
         instrumentation.waitForIdleSync();SystemClock.sleep(200)
         val bitmap=instrumentation.uiAutomation.takeScreenshot() ?: throw AssertionError("The emulator display must be awake for visual review")
         val folder=context.getExternalFilesDir("ui-review")!!;folder.mkdirs()
-        File(folder,"$name.png").outputStream().use{bitmap.compress(Bitmap.CompressFormat.PNG,100,it)};bitmap.recycle()
+        val file=File(folder,"$name.png")
+        file.outputStream().use{bitmap.compress(Bitmap.CompressFormat.PNG,100,it)};bitmap.recycle()
+        require(name.matches(Regex("[a-z0-9-]+")))
+        // Gradle uninstalls the test app, which deletes its external-files directory.
+        for(command in listOf("mkdir -p /data/local/tmp/betna-ui-review","cp ${file.absolutePath} /data/local/tmp/betna-ui-review/$name.png")){
+            android.os.ParcelFileDescriptor.AutoCloseInputStream(instrumentation.uiAutomation.executeShellCommand(command)).use{it.readBytes()}
+        }
     }
     private fun invoke(activity:MainActivity,name:String,value:JSONObject){
         MainActivity::class.java.getDeclaredMethod(name,JSONObject::class.java).apply{isAccessible=true}.invoke(activity,value)
@@ -133,7 +142,7 @@ class BrowserStabilityTest {
         start().use{scenario->
             scenario.onActivity{selectedWeb(it)!!.loadUrl("chrome://crash")}
             waitFor{var recovered=false;scenario.onActivity{recovered=selectedWeb(it)==null&&!it.isFinishing&&!it.isDestroyed};recovered}
-            waitFor{instrumentation.uiAutomation.rootInActiveWindow?.findAccessibilityNodeInfosByText("Retry")?.isNotEmpty()==true}
+            waitFor{var retry=false;scenario.onActivity{retry=hasVisibleText(it.window.decorView,"Retry")};retry}
             screenshot("renderer-recovery")
         }
     }

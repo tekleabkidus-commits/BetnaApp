@@ -29,7 +29,9 @@ class PushService:FirebaseMessagingService(){
         }
         val intent=Intent(this,MainActivity::class.java).putExtra("push_delivery",id).putExtra("push_url",content.optString("action_url")).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         val pending=PendingIntent.getActivity(this,id.hashCode(),intent,PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-        val notification=NotificationCompat.Builder(this,"announcements").setSmallIcon(android.R.drawable.ic_dialog_info).setContentTitle(content.optString("title")).setContentText(content.optString("body")).setStyle(NotificationCompat.BigTextStyle().bigText(content.optString("body"))).setAutoCancel(true).setContentIntent(pending).build()
-        NotificationManagerCompat.from(this).notify(id.hashCode(),notification)
+        val notification=NotificationCompat.Builder(this,"announcements").setSmallIcon(R.drawable.ic_betna_monochrome).setColor(BrowserUi.red).setContentTitle(content.optString("title")).setContentText(content.optString("body")).setStyle(NotificationCompat.BigTextStyle().bigText(content.optString("body"))).setAutoCancel(true).setContentIntent(pending).build()
+        runCatching{NotificationManagerCompat.from(this).notify(id.hashCode(),notification)}.onFailure{
+            api.event("notification_suppressed",id,code="POST_UNAVAILABLE")
+        }
     }
 }

@@ -94,9 +94,15 @@ class BetnaVpn(private val context:Context,private val api:AppApi):Tunnel {
 class BetnaVpnMonitor:Service(){
     private val handler=Handler(Looper.getMainLooper())
     private val tick=object:Runnable{override fun run(){(application as App).vpn.sample();handler.postDelayed(this,10000)}}
-    override fun onCreate(){super.onCreate();getSystemService(NotificationManager::class.java).createNotificationChannel(NotificationChannel("betna_connection","Betna secure connection",NotificationManager.IMPORTANCE_LOW))
-        val open=PendingIntent.getActivity(this,7,Intent(this,MainActivity::class.java),PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-        startForeground(73,NotificationCompat.Builder(this,"betna_connection").setSmallIcon(com.appcontrol.mobile.R.drawable.ic_betna_monochrome).setContentTitle("Betna secure connection").setContentText("Connection managed by Betna").setContentIntent(open).setOngoing(true).build());handler.post(tick)
+    override fun onCreate(){super.onCreate()
+        runCatching{
+            getSystemService(NotificationManager::class.java).createNotificationChannel(NotificationChannel("betna_connection","Betna secure connection",NotificationManager.IMPORTANCE_LOW))
+            val open=PendingIntent.getActivity(this,7,Intent(this,MainActivity::class.java),PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+            startForeground(73,NotificationCompat.Builder(this,"betna_connection").setSmallIcon(com.appcontrol.mobile.R.drawable.ic_betna_monochrome).setContentTitle("Betna secure connection").setContentText("Connection managed by Betna").setContentIntent(open).setOngoing(true).build());handler.post(tick)
+        }.onFailure{
+            // WireGuard owns the VPN service; this optional traffic monitor must not kill the app.
+            (application as App).api.event("notification_suppressed",code="VPN_MONITOR_UNAVAILABLE");stopSelf()
+        }
     }
     override fun onStartCommand(intent:Intent?,flags:Int,startId:Int)=START_NOT_STICKY
     override fun onBind(intent:Intent?):IBinder?=null
