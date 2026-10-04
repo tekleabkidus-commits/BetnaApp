@@ -1,7 +1,8 @@
 (() => {
   'use strict';
   if (window.__betnaCredentials) return;
-  const post = data => window.betnaPasswords?.postMessage(JSON.stringify(data));
+  const frame = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+  const post = data => window.betnaPasswords?.postMessage(JSON.stringify({ ...data, frame }));
   const visible = input => !input.disabled && input.getClientRects().length > 0;
   const roots = (root = document) => {
     const found = [root];
@@ -9,7 +10,7 @@
     return found;
   };
   const inputs = () => roots().flatMap(root => Array.from(root.querySelectorAll('input'))).filter(visible);
-  const passwordInputs = () => inputs().filter(input => input.type === 'password' && !/otp|one.?time/i.test(input.autocomplete + ' ' + input.name));
+  const passwordInputs = () => inputs().filter(input => (input.type === 'password' || /password/.test(input.autocomplete) || /password|passwd|passphrase/i.test(input.name)) && !/otp|one.?time/i.test(input.autocomplete + ' ' + input.name));
   function read() {
     const fields = passwordInputs();
     const password = fields.find(field => field.autocomplete === 'new-password' && field.value) || fields.find(field => field.value);
@@ -24,9 +25,10 @@
     const result = { username: username?.value || '', password: password.value, registration };
     return result.password.length <= 1024 && result.username.length <= 254 ? result : null;
   }
-  let attempted = false, last = 0, hadPassword = false, queued = false;
+  let attempted = false, last = 0, hadPassword = false, queued = false, lastScan = 0;
   function scan() {
     queued = false;
+    lastScan = Date.now();
     const fields = passwordInputs();
     const present = fields.length > 0;
     if (present !== hadPassword) {
@@ -38,7 +40,7 @@
       post({ kind: 'form_resolved' });
     }
   }
-  const queueScan = () => { if (!queued) { queued = true; requestAnimationFrame(scan); } };
+  const queueScan = () => { if (!queued) { queued = true; setTimeout(() => requestAnimationFrame(scan), Math.max(0, 400 - (Date.now() - lastScan))); } };
   function capture(event) {
     if (event?.type === 'click' && !event.composedPath().some(element => element?.matches?.('button,input[type="submit"],[role="button"]'))) return;
     if (Date.now() - last < 1200) return;
@@ -65,7 +67,7 @@
     set(username, account.username); set(password, account.password);
     return true;
   }
-  window.__betnaCredentials = { read, fill, scan };
+  window.__betnaCredentials = { read, fill, scan, hasPassword: () => passwordInputs().length > 0 };
   function start() {
     if (!document.documentElement) return;
     const observer = new MutationObserver(queueScan);

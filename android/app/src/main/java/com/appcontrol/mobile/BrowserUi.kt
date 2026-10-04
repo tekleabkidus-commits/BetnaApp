@@ -10,6 +10,7 @@ import android.graphics.drawable.RippleDrawable
 import android.view.View
 import android.widget.Button
 import android.widget.TextView
+import android.widget.EditText
 
 object BrowserUi {
     val red=Color.rgb(200,33,56)
@@ -23,6 +24,11 @@ object BrowserUi {
     fun fill(context:Context)=if(dark(context))Color.rgb(42,43,52) else Color.rgb(243,244,248)
     fun line(context:Context)=if(dark(context))Color.rgb(66,67,76) else Color.rgb(222,224,232)
     fun text(context:Context,label:CharSequence,size:Int=15,bold:Boolean=false)=TextView(context).apply{text=label;textSize=size.toFloat();setTextColor(ink);typeface=Typeface.create(if(bold)"sans-serif-medium" else "sans-serif",Typeface.NORMAL)}
+    fun field(context:Context,label:String,password:Boolean=false)=EditText(context).apply{
+        hint=label;textSize=16f;setTextColor(ink);setHintTextColor(muted);setSingleLine()
+        background=surface(context,fill(context),13);minHeight=dp(context,52);setPadding(dp(context,14),dp(context,12),dp(context,14),dp(context,12))
+        if(password)inputType=android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+    }
     fun dp(context:Context,n:Int)=(context.resources.displayMetrics.density*n).toInt()
     fun surface(context:Context,color:Int=Color.WHITE,radius:Int=20)=GradientDrawable().apply{setColor(color);cornerRadius=dp(context,radius).toFloat()}
     fun button(context:Context,label:String,primary:Boolean=false,action:()->Unit)=Button(context).apply{

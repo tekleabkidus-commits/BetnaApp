@@ -15,6 +15,21 @@ import java.util.concurrent.atomic.AtomicReference
 
 @RunWith(AndroidJUnit4::class)
 class BrowserSessionStoreTest {
+    @Test fun lateCallbacksAfterCloseCannotThrowOrEraseTheLastSession() {
+        val original=InstrumentationRegistry.getInstrumentation().targetContext
+        val directory=File(original.cacheDir,"session-test-${UUID.randomUUID()}").apply{mkdirs()}
+        val context=object:ContextWrapper(original){override fun getFilesDir()=directory}
+        try {
+            val store=BrowserSessionStore(context)
+            store.write(Bundle().apply{putString("selected","keep-main")})
+            val persisted=CountDownLatch(1);store.read{persisted.countDown()}
+            assertTrue(persisted.await(10,TimeUnit.SECONDS));store.close()
+            val before=File(directory,"browser-session.bin").readBytes()
+            store.write(Bundle().apply{putString("selected","late-write")});store.clear()
+            var value:Bundle?=Bundle();store.read{value=it}
+            assertNull(value);assertArrayEquals(before,File(directory,"browser-session.bin").readBytes())
+        }finally{directory.deleteRecursively()}
+    }
     @Test fun historySurvivesStoreRecreationAndIsEncryptedOnDisk() {
         val original=InstrumentationRegistry.getInstrumentation().targetContext
         val directory=File(original.cacheDir,"session-test-${UUID.randomUUID()}").apply{mkdirs()}

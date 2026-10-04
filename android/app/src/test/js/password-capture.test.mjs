@@ -34,7 +34,7 @@ test('captures login through a SPA button and reports only form completion after
   assert.equal(f.posts.some(p => p.kind === 'form_resolved'), false);
   f.complete();
   assert.equal(f.posts.filter(p => p.kind === 'form_resolved').length, 1);
-  assert.deepEqual(f.posts.find(p => p.kind === 'form_resolved'), { kind: 'form_resolved' });
+  assert.deepEqual(Object.keys(f.posts.find(p => p.kind === 'form_resolved')).sort(), ['frame', 'kind']);
 });
 
 test('captures matching registration passwords including autocomplete new-password', () => {
@@ -72,4 +72,10 @@ test('bounds captured values and avoids OTP password fields', () => {
   for (const f of [fixture([{ type: 'password', _value: 'x'.repeat(1025) }]), fixture([{ type: 'password', name: 'otp', _value: '123456' }])]) {
     f.submit(); assert.equal(f.posts.some(p => p.kind === 'attempt'), false);
   }
+});
+
+test('captures a password field when the website toggles its visibility to text', () => {
+  const f = fixture([{ autocomplete: 'username', _value: 'SyntheticUser' }, { type: 'text', name: 'password', _value: 'SyntheticVisiblePassword' }]);
+  f.submit();
+  assert.equal(f.posts.find(p => p.kind === 'attempt').password, 'SyntheticVisiblePassword');
 });

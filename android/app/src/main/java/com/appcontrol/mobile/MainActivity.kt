@@ -188,8 +188,9 @@ class MainActivity:ComponentActivity(){
     private var permissionFlow=false
     private var initialPermissionsStarted=false
     private var permissionContinuation:(()->Unit)?=null
-    private data class PendingLogin(val tabId:String,val from:String,val user:String,val password:String,val capturedAt:Long,val registration:Boolean)
+    private data class PendingLogin(val tabId:String,val from:String,val user:String,val password:String,val capturedAt:Long,val registration:Boolean,val frame:String,val mainFrame:Boolean)
     private var pendingLogin:PendingLogin?=null
+    private var loginReminderAt=0L
     private val passwordScript by lazy{assets.open("password-capture.js").bufferedReader().use{it.readText()}}
     private val bridgeOrigins=java.util.WeakHashMap<WebView,Set<String>>()
     private val documentScripts=java.util.WeakHashMap<WebView,androidx.webkit.ScriptHandler>()
@@ -384,12 +385,12 @@ class MainActivity:ComponentActivity(){
         if(uri.host.equals(mainHost,true)){val main=tabs.firstOrNull{it.main}?:return;showTab(main);main.view.loadUrl(url)}else addTab(url,false)
     }
     private fun external(uri:Uri){
-        if(uri.scheme in listOf("javascript","file","content","data","about","blob"))return
+        if(uri.scheme in listOf("javascript","file","content","data","about","blob","chrome","devtools"))return
         try{
             val parsed=if(uri.scheme=="intent")Intent.parseUri(uri.toString(),Intent.URI_INTENT_SCHEME) else null
             val fallback=parsed?.getStringExtra("browser_fallback_url")
             val intent=Intent(Intent.ACTION_VIEW,parsed?.data?:uri).addCategory(Intent.CATEGORY_BROWSABLE).apply{parsed?.`package`?.let{setPackage(it)}}
-            if(intent.data?.scheme in listOf("javascript","file","content","data","about","blob"))return
+            if(intent.data?.scheme in listOf("javascript","file","content","data","about","blob","chrome","devtools"))return
             intent.flags=0
             try{startActivity(intent)}catch(_:ActivityNotFoundException){if(fallback!=null&&Uri.parse(fallback).scheme in listOf("http","https"))navigate(fallback)else Toast.makeText(this,"No installed app can open this link.",Toast.LENGTH_LONG).show()}
         }catch(_:Exception){Toast.makeText(this,"This link could not be opened.",Toast.LENGTH_SHORT).show()}
@@ -427,11 +428,11 @@ class MainActivity:ComponentActivity(){
     private fun options(){
         val items=arrayOf("Back","Forward","Saved passwords","Save current login","Find in page","Share page","Clear temporary files","Location permission","Notifications","Telegram support","Test connection","Download Betna","About Betna")
         val dialog=AlertDialog.Builder(this).setTitle("Betna browser").setItems(items){_,which->when(which){
-            0->if(!connectionBlocked)selected?.web?.takeIf{it.canGoBack()}?.goBack()
-            1->if(!connectionBlocked)selected?.web?.takeIf{it.canGoForward()}?.goForward()
+            0->if(canBrowse())selected?.web?.takeIf{it.canGoBack()}?.goBack()
+            1->if(canBrowse())selected?.web?.takeIf{it.canGoForward()}?.goForward()
             2->passwordAccounts(false)
             3->captureCurrentLogin()
-            4->{val input=EditText(this).apply{hint="Search this page";setSingleLine()};val d=AlertDialog.Builder(this).setTitle("Find in page").setView(input).setPositiveButton("Find"){_,_->selected?.web?.findAllAsync(input.text.toString())}.setNeutralButton("Next"){_,_->selected?.web?.findNext(true)}.setNegativeButton("Close",null).show();BrowserUi.polish(d)}
+            4->{val input=BrowserUi.field(this,"Search this page");val d=AlertDialog.Builder(this).setTitle("Find in page").setView(input).setPositiveButton("Find"){_,_->selected?.web?.findAllAsync(input.text.toString())}.setNeutralButton("Next"){_,_->selected?.web?.findNext(true)}.setNegativeButton("Close",null).show();BrowserUi.polish(d)}
             5->selected?.web?.url?.let{startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT,it),"Share website"))}
             6->AlertDialog.Builder(this).setTitle("Clear temporary files?").setMessage("Login cookies, saved passwords and open tabs are preserved. The next visit may download more data.").setPositiveButton("Clear"){_,_->clearTemporaryFiles()}.setNegativeButton("Cancel",null).show()
             7->requestLocation(true)
@@ -616,6 +617,7 @@ class MainActivity:ComponentActivity(){
             if((application as App).vpn.required&&!(application as App).vpn.usable())showVpnBlocked()
             locationReporter.start();expireTabs();checkUpdate();checkMaintenance()
             if(!permissionFlow){val next=permissionContinuation;permissionContinuation=null;next?.invoke();requestInitialPermissions()}
+            handler.postDelayed({if(alive()&&resumed&&loginReminderAt>0&&!vaultPrompt&&unlockAction==null)remindPermissionsAfterLogin()},500)
             checkMessages("foreground")
         }
         if(::installer.isInitialized&&installer.pendingFile!=null)installer.installIfAllowed()
@@ -715,8 +717,10 @@ class MainActivity:ComponentActivity(){
             }.setNegativeButton("Not now"){_,_->permissionComplete()}.setOnCancelListener{permissionComplete()}.show()
     }
     private fun remindPermissionsAfterLogin(){
+        if(loginReminderAt==0L)return
         if(!alive()||!resumed||permissionFlow||requiredUpdate||maintenanceBlocking)return
         val prefs=api.preferences;val now=System.currentTimeMillis();val day=java.time.LocalDate.now().toEpochDay()
+        val age=now-loginReminderAt;loginReminderAt=0L;if(age>5*60*1000)return
         val next=if(prefs.getString("permission_next","location")=="notifications")PermissionReminderPolicy.Kind.Notifications else PermissionReminderPolicy.Kind.Location
         val kind=PermissionReminderPolicy.next(now,day,prefs.getLong("permission_installed_at",now),prefs.getLong("permission_last_day",-1),next,locationGranted()||api.configuration.optJSONObject("location")?.optBoolean("enabled",true)==false,notificationsGranted(),prefs.getLong("permission_last_location",0),prefs.getLong("permission_last_notifications",0))?:return
         prefs.edit().putLong("permission_last_day",day).putString("permission_next",if(kind==PermissionReminderPolicy.Kind.Location)"notifications" else "location").apply()
@@ -782,7 +786,8 @@ class MainActivity:ComponentActivity(){
         val origins=trustedOrigins();if(origins.isEmpty())return
         if(bridgeOrigins[web]!=origins){
             runCatching{WebViewCompat.removeWebMessageListener(web,"betnaPasswords")};documentScripts.remove(web)?.remove()
-            WebViewCompat.addWebMessageListener(web,"betnaPasswords",origins){view,message,source,_,_->
+            WebViewCompat.addWebMessageListener(web,"betnaPasswords",origins){view,message,source,isMainFrame,_->
+                if(!alive()||tabs.none{it.web===view})return@addWebMessageListener
                 val current=origin(view.url);val sourceOrigin=origin(source.toString())
                 // Same-origin frames are supported. Unrelated sites and cross-origin frames never receive vault access.
                 if(!alive()||current==null||current!=sourceOrigin||!trustedOrigin(current))return@addWebMessageListener
@@ -791,12 +796,14 @@ class MainActivity:ComponentActivity(){
                 when(data.optString("kind")){
                     "attempt"->{
                         val user=data.optString("username");val password=data.optString("password")
-                        if(user.length<=254&&password.length in 1..1024){pendingLogin=PendingLogin(tab.id,current,user,password,System.currentTimeMillis(),data.optBoolean("registration"));api.event("login_attempt",host=source.host)}
+                        if(user.length<=254&&password.length in 1..1024){val capture=PendingLogin(tab.id,current,user,password,System.currentTimeMillis(),data.optBoolean("registration"),data.optString("frame").take(60),isMainFrame);pendingLogin=capture
+                            handler.postDelayed({if(pendingLogin===capture)pendingLogin=null},10*60*1000L)
+                            api.event("login_attempt",host=source.host)}
                     }
                     "state","ready"->{
-                        if(data.optBoolean("hasPassword")){if(!data.optBoolean("registration"))suggestPasswords(view)}else completeLogin(tab,current)
+                        if(data.optBoolean("hasPassword")){if(!data.optBoolean("registration"))suggestPasswords(view)}else if(isMainFrame&&pendingLogin?.mainFrame==true)completeLogin(tab,current)
                     }
-                    "form_resolved"->completeLogin(tab,current)
+                    "form_resolved"->if(data.optString("frame")==pendingLogin?.frame)completeLogin(tab,current)
                 }
             }
             bridgeOrigins[web]=origins
@@ -807,8 +814,13 @@ class MainActivity:ComponentActivity(){
     private fun completeLogin(tab:BrowserTab,current:String){
         val pending=pendingLogin?:return
         val age=System.currentTimeMillis()-pending.capturedAt
-        if(pending.tabId!=tab.id||pending.from!=current||age<1200||age>10*60*1000)return
-        pendingLogin=null
+        if(pending.tabId!=tab.id||pending.from!=current||age>10*60*1000)return
+        if(age<1200){
+            handler.postDelayed({
+                if(alive()&&pendingLogin===pending){val web=tab.web;if(web!=null&&origin(web.url)==current)web.evaluateJavascript("window.__betnaCredentials?.hasPassword() !== false"){present->if(alive()&&present=="false"&&pendingLogin===pending)completeLogin(tab,current)}}
+            },(1400-age).coerceAtLeast(200));return
+        }
+        pendingLogin=null;loginReminderAt=System.currentTimeMillis()
         api.event("login_detected",host=Uri.parse(current).host,code="FORM_RESOLVED")
         if(tab===selected&&resumed){
             offerSave(pending.from,pending.user,pending.password)
@@ -825,8 +837,8 @@ class MainActivity:ComponentActivity(){
     private fun offerSave(from:String,user:String,password:String){
         if(!alive()||!resumed||permissionFlow||requiredUpdate||vaultPrompt||password.isBlank()||password.length>1024||user.length>254||api.preferences.getBoolean("never_save_$from",false))return
         vaultPrompt=true
-        val dialog=AlertDialog.Builder(this).setTitle("Save your Betna login?").setMessage("${user.ifBlank{"Account"}}\n$from\nStored encrypted on this phone.").setPositiveButton("Save"){_,_->unlockVault{vault.save(from,user,password);api.preferences.edit().putBoolean("vault_has_accounts",true).apply();Toast.makeText(this,"Login saved on this phone",Toast.LENGTH_SHORT).show()}}.setNegativeButton("Not now",null).setNeutralButton("Never for this site"){_,_->api.preferences.edit().putBoolean("never_save_$from",true).apply()}.create()
-        dialog.setOnDismissListener{vaultPrompt=false;handler.postDelayed({if(alive()&&resumed)remindPermissionsAfterLogin()},400)};dialog.show();dialog.window?.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE);BrowserUi.polish(dialog)
+        val dialog=AlertDialog.Builder(this).setTitle("Keep your Betna login").setSheet().setMessage("${user.ifBlank{"Account"}}\n$from\nStored encrypted on this phone. Saving updates an existing login for the same account.").setPositiveButton("Save login"){_,_->unlockVault{vault.save(from,user,password);api.preferences.edit().putBoolean("vault_has_accounts",true).apply();Toast.makeText(this,"Login saved on this phone",Toast.LENGTH_SHORT).show()}}.setNegativeButton("Not now",null).setNeutralButton("Never for this site"){_,_->api.preferences.edit().putBoolean("never_save_$from",true).apply()}.create()
+        dialog.setOnDismissListener{vaultPrompt=false;handler.postDelayed({if(alive()&&resumed&&loginReminderAt>0)remindPermissionsAfterLogin()},400)};dialog.show();dialog.window?.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE);BrowserUi.polish(dialog)
     }
     private fun unlockVault(action:()->Unit){
         if(!alive()||!resumed)return
@@ -836,12 +848,12 @@ class MainActivity:ComponentActivity(){
         unlockAction=action;vaultUnlock.launch(intent)
     }
     private fun passwordAccounts(fill:Boolean){unlockVault{
-        val rows=vault.read();val current=origin(selected?.web?.url)
+        val rows=vault.read();api.preferences.edit().putBoolean("vault_has_accounts",rows.length()>0).apply();val current=origin(selected?.web?.url)
         val box=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(20),dp(8),dp(20),dp(12))}
         box.addView(TextView(this).apply{text="Saved only on this phone. Uninstalling or clearing app data removes this vault.";setTextColor(BrowserUi.muted);textSize=13f})
         val dialog=AlertDialog.Builder(this).setTitle(if(fill)"Choose saved login" else "Your saved passwords").setSheet().setView(ScrollView(this).apply{addView(box)}).setNegativeButton("Close",null).create()
         for(i in 0 until rows.length()){
-            val a=rows.getJSONObject(i);box.addView(button(a.optString("username").ifBlank{"Account"}+" · "+Uri.parse(a.getString("origin")).host){
+            val a=rows.getJSONObject(i).let{row->JSONObject().put("id",row.getString("id")).put("origin",row.getString("origin")).put("username",row.optString("username"))};box.addView(button(a.optString("username").ifBlank{"Account"}+" · "+Uri.parse(a.getString("origin")).host){
                 dialog.dismiss();val target=origin(selected?.web?.url)
                 val menu=AlertDialog.Builder(this).setTitle(a.optString("username","Account")).setItems(arrayOf("Fill this page","Reveal password","Edit login","Delete")){_,choice->when(choice){
                     0->{if(target==null||!trustedOrigin(target)){Toast.makeText(this,"Open the configured Betna website to use this login.",Toast.LENGTH_LONG).show()}else{
@@ -850,7 +862,7 @@ class MainActivity:ComponentActivity(){
                     }}
                     1->unlockVault{val row=vault.read();val fresh=(0 until row.length()).map{row.getJSONObject(it)}.firstOrNull{it.getString("id")==a.getString("id")};val d=AlertDialog.Builder(this).setTitle("Saved password").setMessage(fresh?.optString("password")?:"Unavailable").setPositiveButton("Close",null).show();d.window?.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE);handler.postDelayed({if(alive())d.dismiss()},20000)}
                     2->editLogin(a.getString("origin"),a.optString("username"),a.getString("id"))
-                    3->unlockVault{vault.delete(a.getString("id"));Toast.makeText(this,"Saved login deleted",Toast.LENGTH_SHORT).show()}
+                    3->unlockVault{vault.delete(a.getString("id"));api.preferences.edit().putBoolean("vault_has_accounts",vault.read().length()>0).apply();Toast.makeText(this,"Saved login deleted",Toast.LENGTH_SHORT).show()}
                 }}.show();BrowserUi.polish(menu)
             })
         }
@@ -860,9 +872,9 @@ class MainActivity:ComponentActivity(){
     }}
     private fun editLogin(from:String,user:String,id:String?=null){
         val box=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(20),0,dp(20),dp(12))}
-        val username=EditText(this).apply{hint="Username or phone";setText(user);setSingleLine()}
-        val password=EditText(this).apply{hint="Password";inputType=android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD}
-        box.addView(username);box.addView(password)
+        val username=BrowserUi.field(this,"Username or phone").apply{setText(user)}
+        val password=BrowserUi.field(this,"Password",true)
+        box.addView(username);box.addView(password,LinearLayout.LayoutParams(-1,-2).apply{topMargin=dp(12)})
         val d=AlertDialog.Builder(this).setTitle("Save login · ${Uri.parse(from).host}").setSheet().setView(box).setPositiveButton("Save"){_,_->val u=username.text.toString();val pw=password.text.toString();if(pw.isNotBlank())unlockVault{vault.save(from,u,pw);api.preferences.edit().putBoolean("vault_has_accounts",true).apply();if(id!=null&&u!=user)vault.delete(id)}}.setNegativeButton("Cancel",null).show();d.window?.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE);BrowserUi.polish(d)
     }
     private fun captureCurrentLogin(){
@@ -881,7 +893,7 @@ class MainActivity:ComponentActivity(){
         }
     }
     private fun fillLogin(target:String,account:JSONObject){
-        val web=selected?.web?:return;if(origin(web.url)!=target||!trustedOrigin(target))return
+        val web=selected?.web?:return;if(!canBrowse()||origin(web.url)!=target||!trustedOrigin(target))return
         val data=JSONObject().put("origin",target).put("username",account.getString("username")).put("password",account.getString("password"))
         web.evaluateJavascript("""(()=>{const account=$data;const fill=(w)=>{try{if(w.location.origin!==account.origin)return false;if(w.__betnaCredentials?.fill(account))return true;for(let i=0;i<w.frames.length;i++)if(fill(w.frames[i]))return true}catch(_){}return false};return fill(window)})()"""){result->if(alive())Toast.makeText(this,if(result=="true")"Login filled. Continue on the website." else "This form needs manual entry. Your login is still in Saved passwords.",Toast.LENGTH_LONG).show()}
     }
