@@ -119,6 +119,7 @@ class MainActivity:ComponentActivity(){
             insets
         }
         setContentView(root)
+        updateSystemBars()
         onBackPressedDispatcher.addCallback(this,object:OnBackPressedCallback(true){override fun handleOnBackPressed(){when{customView!=null->hideFullscreen();connectionBlocked->moveTaskToBack(true);requiredUpdate->moveTaskToBack(true);maintenanceBlocking->moveTaskToBack(true);selected?.web?.canGoBack()==true->selected?.web?.goBack();selected?.main==false->selected?.let{closeTab(it,false)};else->moveTaskToBack(true)}}})
         receivePush(intent);showStartup("Connecting…")
         sessionStore.read { snapshot->onUi{restoredSession=snapshot;sessionLoaded=true;connect()} }
@@ -153,8 +154,11 @@ class MainActivity:ComponentActivity(){
         column.addView(row);footer.addView(column,FrameLayout.LayoutParams(-1,-2))
         pageProgress=ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal).apply{max=100;visibility=View.INVISIBLE;progressTintList=android.content.res.ColorStateList.valueOf(BrowserUi.red)}
         footer.addView(pageProgress,FrameLayout.LayoutParams(-1,dp(2),Gravity.TOP))
-        androidx.core.view.WindowInsetsControllerCompat(window,root).apply{isAppearanceLightStatusBars=!BrowserUi.dark(this@MainActivity);isAppearanceLightNavigationBars=!BrowserUi.dark(this@MainActivity)}
         updateTools()
+    }
+    private fun updateSystemBars(){
+        // Android 11+ needs an installed decor before obtaining its insets controller.
+        WindowCompat.getInsetsController(window,window.decorView).apply{isAppearanceLightStatusBars=!BrowserUi.dark(this@MainActivity);isAppearanceLightNavigationBars=!BrowserUi.dark(this@MainActivity)}
     }
     private fun canBrowse()=alive()&&initialized&&!requiredUpdate&&!maintenanceBlocking&&!connectionBlocked
     private fun updateTools(){
@@ -175,7 +179,7 @@ class MainActivity:ComponentActivity(){
     override fun onConfigurationChanged(newConfig:Configuration){
         super.onConfigurationChanged(newConfig)
         // Retain the live WebViews, including game state, while the window changes size.
-        BrowserUi.refresh(this);buildFooter()
+        BrowserUi.refresh(this);buildFooter();updateSystemBars()
         tabs.forEach{it.web?.invalidate()}
         if(::root.isInitialized){root.setBackgroundColor(BrowserUi.canvas(this));content.setBackgroundColor(BrowserUi.fill(this));root.requestLayout();ViewCompat.requestApplyInsets(root)}
     }
@@ -517,6 +521,7 @@ class MainActivity:ComponentActivity(){
         if(!dialog.isShowing){updateDialog=null;return}
         val download=dialog.getButton(AlertDialog.BUTTON_POSITIVE)?:return
         download.setOnClickListener{
+            if(installer.pendingFile!=null){installer.installIfAllowed();return@setOnClickListener}
             download.isEnabled=false;status.text="Downloading and checking your update…"
             installer.download(release){message,_->if(alive()&&dialog.isShowing){status.text=message;download.isEnabled=true}}
         }
@@ -620,7 +625,7 @@ class MainActivity:ComponentActivity(){
             handler.postDelayed({if(alive()&&resumed&&loginReminderAt>0&&!vaultPrompt&&unlockAction==null)remindPermissionsAfterLogin()},500)
             checkMessages("foreground")
         }
-        if(::installer.isInitialized&&installer.pendingFile!=null)installer.installIfAllowed()
+        if(::installer.isInitialized&&installer.pendingFile!=null&&packageManager.canRequestPackageInstalls())installer.installIfAllowed()
         updateTools()
     }
     override fun onPause(){

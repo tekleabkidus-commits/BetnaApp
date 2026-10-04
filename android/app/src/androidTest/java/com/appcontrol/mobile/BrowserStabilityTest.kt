@@ -15,6 +15,7 @@ import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Assume.assumeTrue
 import org.junit.Before
+import org.junit.After
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
@@ -25,6 +26,8 @@ import java.util.concurrent.atomic.AtomicReference
 class BrowserStabilityTest {
     private val instrumentation=InstrumentationRegistry.getInstrumentation()
     private val context get()=instrumentation.targetContext
+    private var activeScenario:ActivityScenario<MainActivity>?=null
+    private var historyWriter:java.util.concurrent.ExecutorService?=null
     private val site="""<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><style>
         *{box-sizing:border-box}html,body{margin:0;height:100%;font-family:sans-serif;background:#f6f8f2;color:#283523}body{display:flex;flex-direction:column}.brand{background:#ffd52a;padding:18px 22px;font-size:25px;font-weight:bold;color:#7d321d}main{padding:24px 22px;flex:1}h1{font-size:24px}p{font-size:15px;color:#687663;line-height:1.5}input{display:block;padding:14px;border:1px solid #dae0d5;border-radius:12px;margin:12px 0;width:100%;font-size:16px;background:white}button{padding:15px;background:#ffd52a;color:#613c1c;border:0;border-radius:12px;width:100%;font-size:16px}nav{background:#ffd52a;display:flex;justify-content:space-around;padding:17px 6px;font-size:13px;color:#7d321d}a{display:block;margin-top:20px;color:#6d4824}
         </style></head><body><div class="brand">BETNA</div><main><h1 id="heading">Welcome back</h1><p>Website fixture for browser testing.</p><form id="login" onsubmit="return false"><input autocomplete="username" id="user" placeholder="Phone number"><input autocomplete="current-password" type="password" id="password" placeholder="Password"><button type="button" id="submit">Sign in</button></form><a id="external" href="https://other.test/">Open external page</a></main><nav><span>Sports</span><span>Games</span><span>Deposit</span><span>PromoCode</span><span>TV</span></nav><script>window.gameCheckpoint=73;</script></body></html>"""
@@ -32,10 +35,17 @@ class BrowserStabilityTest {
     @Before fun prepareIsolatedPreview(){
         assumeTrue(BuildConfig.DEBUG)
         context.getSharedPreferences("appcontrol",Context.MODE_PRIVATE).edit().putBoolean("vpn_permission_asked",true).putBoolean("initial_location_done",true).putBoolean("initial_notifications_done",true).apply()
-        File(context.filesDir,"browser-session.bin").delete()
+        listOf("browser-session.bin","browser-session.bin.bak","browser-session.bin.new").forEach{File(context.filesDir,it).delete()}
         val api=(context.applicationContext as App).api
         api.configuration.remove("release");api.configuration.remove("maintenance")
         api.configuration.put("website_url","about:blank").put("dns",JSONObject().put("enabled",false))
+    }
+
+    @After fun finishPreviewAndDrainItsHistoryWrites(){
+        activeScenario?.close();activeScenario=null
+        // Production history writes finish asynchronously after Activity destruction.
+        // Drain that writer before the next test deletes its isolated preview history.
+        historyWriter?.let{assertTrue(it.awaitTermination(10,java.util.concurrent.TimeUnit.SECONDS))};historyWriter=null
     }
 
     private fun waitFor(condition:()->Boolean){
@@ -48,7 +58,11 @@ class BrowserStabilityTest {
         return tab.javaClass.getDeclaredField("web").apply{isAccessible=true}.get(tab) as? WebView
     }
     private fun start():ActivityScenario<MainActivity>{
-        val scenario=ActivityScenario.launch(MainActivity::class.java)
+        val scenario=ActivityScenario.launch(MainActivity::class.java);activeScenario=scenario
+        scenario.onActivity{activity->
+            val store=MainActivity::class.java.getDeclaredField("sessionStore").apply{isAccessible=true}.get(activity)
+            historyWriter=store.javaClass.getDeclaredField("executor").apply{isAccessible=true}.get(store) as java.util.concurrent.ExecutorService
+        }
         waitFor{var ready=false;scenario.onActivity{ready=selectedWeb(it)!=null};ready}
         scenario.onActivity{activity->
             activity.requestedOrientation=ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
@@ -56,7 +70,7 @@ class BrowserStabilityTest {
             api.configuration.put("website_url",BuildConfig.WEBSITE_URL);api.configurationListener?.invoke()
             selectedWeb(activity)!!.loadDataWithBaseURL(BuildConfig.WEBSITE_URL,site,"text/html","UTF-8",BuildConfig.WEBSITE_URL)
         }
-        waitFor{js(scenario,"document.readyState") == "\"complete\""}
+        waitFor{js(scenario,"window.gameCheckpoint") == "73"}
         return scenario
     }
     private fun js(scenario:ActivityScenario<MainActivity>,script:String):String?{
