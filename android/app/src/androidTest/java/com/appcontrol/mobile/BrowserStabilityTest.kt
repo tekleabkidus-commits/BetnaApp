@@ -7,6 +7,11 @@ import android.os.SystemClock
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.WebView
+import android.webkit.WebViewClient
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
+import android.webkit.WebResourceError
+import android.webkit.RenderProcessGoneDetail
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -68,7 +73,20 @@ class BrowserStabilityTest {
             activity.requestedOrientation=ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
             val api=(activity.application as App).api
             api.configuration.put("website_url",BuildConfig.WEBSITE_URL);api.configurationListener?.invoke()
-            selectedWeb(activity)!!.loadDataWithBaseURL(BuildConfig.WEBSITE_URL,site,"text/html","UTF-8",BuildConfig.WEBSITE_URL)
+            val web=selectedWeb(activity)!!;val original=web.webViewClient
+            val fixture=BuildConfig.WEBSITE_URL.trimEnd('/')+"/__betna_fixture__?id="+UUID.randomUUID()
+            // Use a real HTTPS navigation origin. loadData can expose an opaque message origin.
+            // Keep the production callbacks and origin checks intact while supplying offline HTML.
+            web.webViewClient=object:WebViewClient(){
+                override fun shouldInterceptRequest(view:WebView,request:WebResourceRequest):WebResourceResponse?=
+                    if(request.url.toString()==fixture)WebResourceResponse("text/html","UTF-8",site.byteInputStream()) else original.shouldInterceptRequest(view,request)
+                override fun shouldOverrideUrlLoading(view:WebView,request:WebResourceRequest)=original.shouldOverrideUrlLoading(view,request)
+                override fun onPageStarted(view:WebView,url:String?,icon:Bitmap?)=original.onPageStarted(view,url,icon)
+                override fun onPageFinished(view:WebView,url:String?)=original.onPageFinished(view,url)
+                override fun onReceivedError(view:WebView,request:WebResourceRequest,error:WebResourceError)=original.onReceivedError(view,request,error)
+                override fun onRenderProcessGone(view:WebView,detail:RenderProcessGoneDetail)=original.onRenderProcessGone(view,detail)
+            }
+            web.loadUrl(fixture)
         }
         waitFor{js(scenario,"window.gameCheckpoint") == "73"}
         return scenario
@@ -85,7 +103,7 @@ class BrowserStabilityTest {
     }
     private fun screenshot(name:String){
         instrumentation.waitForIdleSync();SystemClock.sleep(200)
-        val bitmap=instrumentation.uiAutomation.takeScreenshot()?:return
+        val bitmap=instrumentation.uiAutomation.takeScreenshot() ?: throw AssertionError("The emulator display must be awake for visual review")
         val folder=context.getExternalFilesDir("ui-review")!!;folder.mkdirs()
         File(folder,"$name.png").outputStream().use{bitmap.compress(Bitmap.CompressFormat.PNG,100,it)};bitmap.recycle()
     }
@@ -115,7 +133,7 @@ class BrowserStabilityTest {
         start().use{scenario->
             scenario.onActivity{selectedWeb(it)!!.loadUrl("chrome://crash")}
             waitFor{var recovered=false;scenario.onActivity{recovered=selectedWeb(it)==null&&!it.isFinishing&&!it.isDestroyed};recovered}
-            assertTrue(instrumentation.uiAutomation.rootInActiveWindow?.findAccessibilityNodeInfosByText("Retry")?.isNotEmpty()==true)
+            waitFor{instrumentation.uiAutomation.rootInActiveWindow?.findAccessibilityNodeInfosByText("Retry")?.isNotEmpty()==true}
             screenshot("renderer-recovery")
         }
     }

@@ -38,7 +38,10 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -memory 2048
           # The action invokes each script line in a fresh shell. Keep status and cwd in one shell.
-          script: >-
+          script: |
+            adb shell settings put system screen_off_timeout 1800000
+            adb shell input keyevent KEYCODE_WAKEUP
+            adb shell wm dismiss-keyguard
             bash -c 'cd android && { test_status=0; bash gradlew connectedDebugAndroidTest || test_status=$?; adb pull /sdcard/Android/data/com.appcontrol.mobile.preview/files/ui-review ../ui-review || true; exit "$test_status"; }'
       - uses: actions/upload-artifact@v4
         if: always()
