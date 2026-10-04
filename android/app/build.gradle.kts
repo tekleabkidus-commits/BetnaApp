@@ -58,7 +58,7 @@ tasks.register("verifyReleaseConfiguration") {
         require(setting("API_URLS").startsWith("https://")) { "Set API_URLS for production" }
         require(setting("CONFIG_PUBLIC_KEY").isNotBlank()) { "Pin the server signing public key" }
         require(setting("WEBSITE_URL").startsWith("https://") && !setting("WEBSITE_URL").contains("example.com")) { "Set the actual website URL" }
-        require(setting("RELEASE_STORE_FILE").isNotBlank()) { "Owner signing key is required" }
+        require(setting("RELEASE_STORE_FILE").isNotBlank() || setting("CI_UNSIGNED_RELEASE") == "true") { "Owner signing key is required; CI unsigned artifacts must be signed before distribution" }
     }
 }
 tasks.matching { it.name == "preReleaseBuild" }.configureEach { dependsOn("verifyReleaseConfiguration") }

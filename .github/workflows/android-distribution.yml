@@ -1,0 +1,34 @@
+name: Build Betna distribution artifact
+on:
+  push:
+    branches: [main, fix/betna-browser-stability]
+permissions:
+  contents: read
+jobs:
+  distribution:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
+      - run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Compile production configuration without private signing material
+        env:
+          API_URLS: 'https://betnaapp-production-ekfmlk.laravel.cloud'
+          WEBSITE_URL: 'https://betna.bet'
+          CONFIG_PUBLIC_KEY: 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAzE3sf9anQdYOAxsoEJW/ayQuAofdywbIUKKURI8PBlyDGz3o4QeA4gu6TB45HFN6C7GPGkEQcQVDLheuF/jQtT86fR2x0uqRElMXfb1eMK9I/44K6LsZUHks1cvRpEEH5UWGx0jEsWWlsuMWfLN+oUj4oj5H9WEacVtOdt8H3wj0vTcEfO+1yUf7TYQH9FFtzrwuNH1Fqu0pFnfHDEZW0f1tT313ezvvTXwx+68q8yn0n2r5jKhU2RYOC9G2/i7x//2YlmQZoybTtIej6e7ahzEvKFJmzckLM8BxqAMx1RYSf2KJM8EDHkBNV+KGL9EAEVa0hLR60WFX24WiFxDyeQIDAQAB'
+          CI_UNSIGNED_RELEASE: 'true'
+        run: cd android && bash gradlew assembleRelease lintRelease
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Betna-unsigned-build
+          path: |
+            android/app/build/outputs/apk/release/*unsigned.apk
+            android/app/build/outputs/mapping/release/mapping.txt

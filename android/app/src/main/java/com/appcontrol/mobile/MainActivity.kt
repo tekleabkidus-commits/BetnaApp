@@ -3,6 +3,7 @@ package com.appcontrol.mobile
 import android.Manifest
 import android.annotation.SuppressLint
 import com.appcontrol.mobile.BetnaDialog as AlertDialog
+import com.appcontrol.mobile.BetnaToast as Toast
 import android.app.ActivityManager
 import android.content.ActivityNotFoundException
 import android.content.Intent
@@ -176,7 +177,7 @@ class MainActivity:ComponentActivity(){
         // Retain the live WebViews, including game state, while the window changes size.
         BrowserUi.refresh(this);buildFooter()
         tabs.forEach{it.web?.invalidate()}
-        if(::root.isInitialized){root.requestLayout();ViewCompat.requestApplyInsets(root)}
+        if(::root.isInitialized){root.setBackgroundColor(BrowserUi.canvas(this));content.setBackgroundColor(BrowserUi.fill(this));root.requestLayout();ViewCompat.requestApplyInsets(root)}
     }
     private lateinit var locationReporter:LocationReporter
     private lateinit var vault:PasswordVault
@@ -287,6 +288,7 @@ class MainActivity:ComponentActivity(){
                 val tab=tabs.find{it.web===view}
                 // The renderer is gone: use the last live checkpoint, never query the dead WebView.
                 tab?.let{it.failed=true;it.web=null;it.progress=100}
+                documentScripts.remove(view);bridgeOrigins.remove(view)
                 runCatching{(view.parent as? ViewGroup)?.removeView(view)}
                 runCatching{view.destroy()}
                 pendingLogin=null
@@ -339,7 +341,7 @@ class MainActivity:ComponentActivity(){
     private fun home(){val main=tabs.firstOrNull{it.main}?:return;main.failed=false;showTab(main);main.view.loadUrl(api.configuration.optString("website_url",BuildConfig.WEBSITE_URL))}
     private fun closeTab(tab:BrowserTab,expired:Boolean){
         if(tab.main)return
-        val wasSelected=selected===tab;tabs.remove(tab);tab.web?.let{(it.parent as? ViewGroup)?.removeView(it);it.stopLoading();it.destroy()};tab.web=null
+        val wasSelected=selected===tab;tabs.remove(tab);tab.web?.let{(it.parent as? ViewGroup)?.removeView(it);it.stopLoading();it.destroy()};tab.web?.let{documentScripts.remove(it);bridgeOrigins.remove(it)};tab.web=null
         api.event(if(expired)"tab_expired" else "tab_closed")
         if(wasSelected)tabs.firstOrNull{it.main}?.let{showTab(it)}
         updateTools();saveSession()
@@ -634,7 +636,7 @@ class MainActivity:ComponentActivity(){
         saveSession();destroyed=true;resumed=false;pendingLogin=null;unlockAction=null;permissionContinuation=null
         handler.removeCallbacksAndMessages(null)
         updateDialog?.setOnDismissListener(null);updateDialog?.dismiss();maintenanceDialog?.setOnDismissListener(null);maintenanceDialog?.dismiss()
-        tabs.forEach{it.web?.let{web->runCatching{(web.parent as? ViewGroup)?.removeView(web);web.destroy()};it.web=null}}
+        tabs.forEach{tab->val web=tab.web;tab.web=null;if(web!=null)runCatching{(web.parent as? ViewGroup)?.removeView(web);web.destroy()}}
         if(::sessionStore.isInitialized)sessionStore.close()
         if(::watchdog.isInitialized)watchdog.close()
         if(::api.isInitialized)api.configurationListener=null
@@ -643,7 +645,7 @@ class MainActivity:ComponentActivity(){
         runCatching{getSystemService(ConnectivityManager::class.java).unregisterNetworkCallback(networkCallback)}
         if(::engine.isInitialized)runCatching{engine.close()}
         if(::installer.isInitialized)installer.close()
-        BetnaDialog.dismissAll(this)
+        AlertDialog.dismissAll(this)
         io.shutdownNow();fileCallback?.onReceiveValue(null);fileCallback=null;super.onDestroy()
     }
     private fun hideFullscreen(){footer.visibility=View.VISIBLE;customView?.let{(it.parent as? ViewGroup)?.removeView(it)};customView=null;customViewCallback?.onCustomViewHidden();customViewCallback=null;androidx.core.view.WindowInsetsControllerCompat(window,root).show(WindowInsetsCompat.Type.systemBars())}

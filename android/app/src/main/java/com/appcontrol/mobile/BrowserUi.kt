@@ -32,7 +32,7 @@ object BrowserUi {
     }
     fun polish(dialog:BetnaDialog){
         for(which in listOf(BetnaDialog.BUTTON_POSITIVE,BetnaDialog.BUTTON_NEGATIVE,BetnaDialog.BUTTON_NEUTRAL)){
-            dialog.getButton(which)?.apply{isAllCaps=false;textSize=14f;setTextColor(if(which==AlertDialog.BUTTON_POSITIVE)red else muted);typeface=Typeface.create("sans-serif-medium",Typeface.NORMAL)}
+            dialog.getButton(which)?.apply{isAllCaps=false;textSize=14f;setTextColor(if(which==BetnaDialog.BUTTON_POSITIVE)red else muted);typeface=Typeface.create("sans-serif-medium",Typeface.NORMAL)}
         }
         dialog.getButton(BetnaDialog.BUTTON_POSITIVE)?.setTextColor(Color.WHITE)
     }
