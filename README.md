@@ -1,6 +1,6 @@
 # Betna — Android and Laravel back office
 
-Betna 0.4.0 for an existing website you cannot modify. `backend/` is Laravel 13 (PHP 8.4+); `android/` is Kotlin (Android 8+). Laravel Cloud hosts the admin/API.
+Betna 0.6.0 for an existing website you cannot modify. `backend/` is Laravel 13 (PHP 8.4+); `android/` is Kotlin (Android 8+). Laravel Cloud hosts the admin/API.
 
 ## Included
 
@@ -11,19 +11,21 @@ Betna 0.4.0 for an existing website you cannot modify. `backend/` is Laravel 13 
 - Editable Telegram username, public Download Betna App page, stable APK redirect and managed share links with request counters.
 - Normal DNS/settings forms, selected test-device configuration revisions, promotion to everyone, rollback and optional/blocking maintenance notices.
 - Optional local encrypted password vault with device authentication, save prompts, account management and explicit confirmation before filling a previously saved Betna login on a new configured Betna domain. Passwords never reach Laravel or telemetry. Android password-manager autofill remains an alternative; form compatibility depends on the provider website.
-- Compact icon header, rounded native popups, stable loading indicators and in-place rotation/resize handling. Fullscreen website media is supported.
+- Compact bottom browser toolbar, hidden tab chooser for a single tab, custom rounded sheets/popups, inline announcement cards, stable loading indicators, light/dark appearance and in-place rotation/resize handling. Fullscreen website media is supported.
+- Login and registration capture supports standard forms and SPA buttons, with manual Save current login as a fallback. First-install permission explanations and alternating login reminders respect Android consent and permanent-denial settings.
+- Renderer failures show recovery without finishing the Activity. Required updates and maintenance retain the app window and tabs. Previous process-exit reasons and safe crash codes appear in each device's stability report.
 - Foreground, permission-based approximate location reporting, filtered clustered location map and audited exports. Per-device pages show activity, location history and command status. Website login attempts are reported separately from successful website logins, which require provider integration.
 - Standard WebView caching and signed, targeted temporary-cache clearing commands (immediate or next opening), with acknowledgements and expiry. Cookies, saved credentials and navigation history are preserved.
 - Admin-controlled per-app WireGuard VPN, Android consent, mandatory-connection blocking, primary/backup endpoints, peer enrollment, traffic reports and configurable cost estimates. VPN remains off until real servers and peers are provisioned.
 - Manual/scheduled/recurring push and event-triggered popup/banner campaigns, audience filters, language variants, caps, quiet hours and opt-outs. Preview, selected-device test delivery and explicit promotion; an opening-only trigger is limited to a configurable 2–30 second launch window.
 - Required authenticator two-factor setup, one-use recovery codes and installation-token revocation. Compatibility metadata includes Android, phone model/manufacturer, WebView, push availability and low-memory devices; startup, crash/renderer and UI-stall telemetry stays bounded.
-- Installation, approximate online, versions, events, campaign delivery and retention reports; CSV export; owner/operator/viewer roles and audit logs.
+- Installation, approximate online, versions, events, campaign delivery and retention reports; CSV export; owner/SuperAdmin/operator/viewer roles and audit logs. SuperAdmin is denied Connection & tabs, App releases, Betna VPN, Cache controls, Connection reports, Activity log and Staff access, including their write actions.
 - APK drafts/uploads, artifact verification, staged rollout, required minimum version and optional reminders. Android installation consent remains required.
 - Signed remote settings, cached configuration, Keystore-protected installation token and bounded offline telemetry.
 
 ## Build status
 
-Unconfigured source builds use preview defaults. The delivered signed Betna 0.4.0 APK connects to `https://betnaapp-production-ekfmlk.laravel.cloud/` using the existing public configuration pin and owner signing certificate. Private build settings and keys are excluded from this repository. Firebase delivery requires matching Android and server credentials. No physical-device acceptance test has been performed. DNS cannot bypass all blocking methods; backup domains must already serve the website. The native viewport fills available space, but provider-specific footer spacing requires verification on the actual website and phone.
+Unconfigured source builds use preview defaults. The distribution workflow compiles the production API `https://betnaapp-production-ekfmlk.laravel.cloud/`, website `https://betna.bet` and existing public configuration pin. Its APK is deliberately unsigned and must be signed with the permanent owner key before installation or distribution. Private build settings and keys are excluded from this repository. Firebase delivery requires matching Android and server credentials. No physical-device acceptance test has been performed. DNS cannot bypass all blocking methods; backup domains must already serve the website. The native viewport fills available space, but provider-specific footer spacing requires verification on the actual website and phone.
 
 ## Local backend
 
@@ -94,10 +96,10 @@ Cloud PHP does not normally include Android tools; provision the verification en
 
 - Test actual website login/autofill, redirects, cookies, uploads, downloads and payment/banking/Telegram handoffs on real Android devices and the affected network.
 - Test Firebase delivery with notification permission granted/denied and app backgrounded/terminated. Delivery/online status cannot prove a person read a message.
-- Quiet hours suppress eligibility at the scheduled run; a one-time push is not deferred automatically. Recurrence is elapsed minutes, not a calendar/DST schedule. Banners currently use top-position native dialogs.
+- Quiet hours suppress eligibility at the scheduled run; a one-time push is not deferred automatically. Recurrence is elapsed minutes, not a calendar/DST schedule. Banners appear as inline cards above the website; popups and menus use app-owned presentation.
 - Tabs and WebView navigation history are restored after process death where WebView supports it. Runtime JavaScript/game state is not a durable snapshot: Android memory pressure, renderer termination, network loss and website session expiry can interrupt a game. Cookies are never deliberately cleared. External-tab expiry still applies after restoration. Website camera/microphone/geolocation requests are denied in this version. Standard file picking is supported. Blob/data downloads require site-specific support; network downloads have a 100 MB limit.
 - Android 8 is the minimum. Updated Android System WebView with proxy-override support is required for the custom-DNS mode. FCM requires available Google Play services and valid Firebase settings; other devices still have the website and in-app campaigns but no vendor push integration.
-- Device instrumentation tests are included, but no emulator or phone was available to run them. Phone/network coverage, full WebView game restoration checks and measured startup/memory profiling remain release acceptance work. R8 makes release code harder to inspect; no client app can be guaranteed uncrackable.
+- GitHub runs device instrumentation on Android 8 and Android 15 emulators, including live rotation/background retention, deliberate renderer failure, required update/maintenance handling and visual captures. Phone/network coverage, actual provider login/game behavior and measured startup/memory profiling remain release acceptance work. R8 makes release code harder to inspect; no client app can be guaranteed uncrackable.
 - Test required/optional updates, invalid certificate, installation permission, offline cache and configuration expiry before public release. Updates cannot install silently.
 - Reports count installations, not verified people. Website accounts, balances and transactions need site cooperation. Detailed events expire after 90 days; installation/delivery records remain.
 - Confirm support details, production accessibility and device acceptance before public rollout. Never send passwords, page contents or query strings to telemetry.
