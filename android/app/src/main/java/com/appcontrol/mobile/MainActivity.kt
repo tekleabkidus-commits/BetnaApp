@@ -44,8 +44,8 @@ class MainActivity:ComponentActivity(){
     private lateinit var root:LinearLayout
     private lateinit var content:FrameLayout
     private lateinit var footer:FrameLayout
-    private lateinit var backButton:Button
-    private lateinit var tabButton:Button
+    private lateinit var backButton:ImageButton
+    private lateinit var tabButton:ImageButton
     private var destroyed=false
     private fun alive()=!destroyed&&!isFinishing&&!isDestroyed
     private fun onUi(action:()->Unit){runOnUiThread{if(alive())action()}}
@@ -140,10 +140,11 @@ class MainActivity:ComponentActivity(){
         address.addView(pageSpinner,LinearLayout.LayoutParams(dp(16),dp(16)))
         column.addView(address)
         val row=LinearLayout(this).apply{gravity=Gravity.CENTER_VERTICAL;minimumHeight=dp(48)}
-        fun tool(icon:Int,label:String,action:()->Unit)=button("",label,action).apply{
-            minWidth=0;minimumWidth=0;setPadding(0,dp(12),0,dp(12))
-            setCompoundDrawablesWithIntrinsicBounds(null,getDrawable(icon),null,null)
-            background=BrowserUi.surface(this@MainActivity,android.graphics.Color.TRANSPARENT,12)
+        fun tool(icon:Int,label:String,action:()->Unit)=ImageButton(this).apply{
+            contentDescription=label;minimumWidth=0;minimumHeight=dp(48);setPadding(dp(12),dp(12),dp(12),dp(12));scaleType=ImageView.ScaleType.CENTER
+            setImageResource(icon);imageTintList=android.content.res.ColorStateList.valueOf(if(icon==R.drawable.ic_browser_back)BrowserUi.red else BrowserUi.ink)
+            background=android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(0x22444444),BrowserUi.surface(this@MainActivity,android.graphics.Color.TRANSPARENT,12),null)
+            setOnClickListener{action()}
         }
         backButton=tool(R.drawable.ic_browser_back,"Back"){browserBack()}
         row.addView(backButton,LinearLayout.LayoutParams(0,dp(48),1f))
@@ -159,6 +160,7 @@ class MainActivity:ComponentActivity(){
     }
     private fun updateSystemBars(){
         // Android 11+ needs an installed decor before obtaining its insets controller.
+        if(Build.VERSION.SDK_INT<35){window.statusBarColor=BrowserUi.canvas(this);window.navigationBarColor=BrowserUi.canvas(this)}
         WindowCompat.getInsetsController(window,window.decorView).apply{isAppearanceLightStatusBars=!BrowserUi.dark(this@MainActivity);isAppearanceLightNavigationBars=!BrowserUi.dark(this@MainActivity)}
     }
     private fun canBrowse()=alive()&&initialized&&!requiredUpdate&&!maintenanceBlocking&&!connectionBlocked

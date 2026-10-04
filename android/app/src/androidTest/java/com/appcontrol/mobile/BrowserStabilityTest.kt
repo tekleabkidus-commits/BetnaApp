@@ -106,7 +106,7 @@ class BrowserStabilityTest {
     }
     private fun screenshot(name:String){
         val drawn=java.util.concurrent.CountDownLatch(1)
-        activeScenario?.onActivity{activity->val web=selectedWeb(activity);if(web?.isAttachedToWindow==true&&web.isShown)web.postVisualStateCallback(1,object:WebView.VisualStateCallback(){override fun onComplete(id:Long){drawn.countDown()}})else drawn.countDown()}?:drawn.countDown()
+        activeScenario?.onActivity{activity->val web=selectedWeb(activity);if(name=="footer"&&web?.isAttachedToWindow==true&&web.isShown)web.postVisualStateCallback(1,object:WebView.VisualStateCallback(){override fun onComplete(id:Long){drawn.countDown()}})else drawn.countDown()}?:drawn.countDown()
         assertTrue("The website frame must be ready before capture",drawn.await(10,java.util.concurrent.TimeUnit.SECONDS))
         instrumentation.waitForIdleSync();SystemClock.sleep(200)
         val bitmap=instrumentation.uiAutomation.takeScreenshot() ?: throw AssertionError("The emulator display must be awake for visual review")

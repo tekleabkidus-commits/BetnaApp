@@ -34,7 +34,10 @@ object BrowserUi {
     }
     fun dp(context:Context,n:Int)=(context.resources.displayMetrics.density*n).toInt()
     fun surface(context:Context,color:Int=Color.WHITE,radius:Int=20)=GradientDrawable().apply{setColor(color);cornerRadius=dp(context,radius).toFloat()}
-    fun checkbox(context:Context,label:String)=CheckBox(context).apply{
+    fun checkbox(context:Context,label:String)=object:CheckBox(context){
+        override fun getCompoundPaddingLeft()=super.getCompoundPaddingLeft()+if(layoutDirection==View.LAYOUT_DIRECTION_LTR)dp(context,8)else 0
+        override fun getCompoundPaddingRight()=super.getCompoundPaddingRight()+if(layoutDirection==View.LAYOUT_DIRECTION_RTL)dp(context,8)else 0
+    }.apply{
         text=label;textSize=13f;setTextColor(muted);minHeight=dp(context,44);compoundDrawablePadding=dp(context,8)
         val empty=GradientDrawable().apply{shape=GradientDrawable.OVAL;setColor(Color.TRANSPARENT);setSize(dp(context,20),dp(context,20));setStroke(dp(context,1),muted)}
         buttonTintList=null;buttonDrawable=StateListDrawable().apply{addState(intArrayOf(android.R.attr.state_checked),context.getDrawable(R.drawable.ic_option_checked));addState(intArrayOf(),empty)}
